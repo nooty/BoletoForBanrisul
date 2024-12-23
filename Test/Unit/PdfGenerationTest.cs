@@ -1,0 +1,192 @@
+using BoletoForBanrisul.Core.Models;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using RazorLight;
+using BoletoForBanrisul.Report;
+using BoletoForBanrisul.Report.Utils;
+using Moq;
+using System.IO.Compression;
+using BoletoForBanrisul.Core.Models.Types;
+
+namespace Test
+{
+    [Trait("Category", "Unit")]
+    public class PdfGenerationTest
+    {
+        [Fact]
+        public async Task Should_Generate_PDF_From_Boleto1_Object()
+        {
+            Boleto boleto = BoletoGenerator.GenerateBoleto1();
+
+            boleto.Titulo.Mensagens = null;
+            boleto.Titulo.Instrucoes = new Instrucoes()
+            {
+                Baixa = new Baixa()
+                {
+                    Codigo = CodigoBaixa.BaixarDevolver,
+                    Prazo = 99
+                },
+            };
+
+            var report = new BoletoReportBuilder()
+				.Configure((PrintSettings options) =>
+                {
+                    options.PaymentLocation = "PAGÁVEL EM QUALQUER BANCO ATÉ O VENCIMENTO.";
+                    options.Beneficiary = new BeneficiarySettings {
+                        Code = "0120998844513",
+                        Name = "EMPRESA TESTE",
+                        CpfCnpj = "12345678901123",
+                        Address = "RUA TESTE, 123",
+                        City = "PORTO ALEGRE",
+                        State = "RS",
+                        ZipCode = "90000-000"
+                    };
+                })
+				.Build();
+
+			var pdf = await report.PrintAsync(boleto);
+
+            // Save to file.
+            File.WriteAllBytes("boleto1-test.pdf", pdf);
+
+            Assert.NotNull(pdf);
+        }
+
+        [Theory]
+        [InlineData("{NossoNumero}_{SeuNumero}_{DataVencimento}_{NomePagador}", "123456_7890_20241005_Clie_nte Teste.pdf")]
+        [InlineData("{NossoNumero}_{DataEmissao}_{CpfCnpjPagador}", "123456_20240930_12345678900.pdf")]
+        [InlineData("{SeuNumero}_{NomePagador}_{DataVencimento}", "7890_Clie_nte Teste_20241005.pdf")]
+        [InlineData("{NomeBeneficiario}_{CpfCnpjBeneficiario}_{NossoNumero}", "Beneficiario Teste_23456789000000_123456.pdf")]
+        public async Task Should_Generate_Zip_File_Names_Successfully(string fileNameTemplate, string expectedFileName)
+        {
+            // Arrange.
+            var printSettings = new PrintSettings
+            {
+                FileNameTemplate = fileNameTemplate,
+                Beneficiary = new BeneficiarySettings { 
+                    Name = "Beneficiario Teste", 
+                    CpfCnpj = "23456789000000" 
+                }
+            };
+
+            var pdfConverterMock = new Mock<IPdfConverter>();
+            pdfConverterMock.Setup(p => p.ConvertToPdfAsync(It.IsAny<string>())).Returns(
+                Task.FromResult(new byte[] { 1, 2, 3, 4 })
+            );
+
+            var boletoReport = new BoletoReport(printSettings, pdfConverterMock.Object);
+
+            var boletos = new List<Boleto>
+            {
+                new Boleto
+                {
+                    Titulo = new Titulo
+                    {
+                        NossoNumero = "123456",
+                        SeuNumero = "7890",
+                        DataVencimento = new DateTime(2024, 10, 5),
+                        DataEmissao = new DateTime(2024, 9, 30),
+                        Pagador = new Pagador { CpfCnpj = "12345678900", Nome = "Clie/nte Teste" }
+                    }
+                }
+            };
+
+            // Act.
+            var zipBytes = await boletoReport.ZipBoletosAsync(boletos);
+
+            using var zipStream = new MemoryStream(zipBytes);
+            zipStream.Seek(0, SeekOrigin.Begin);
+
+            using var zipArchive = new ZipArchive(zipStream, ZipArchiveMode.Read);
+            var entry = zipArchive.Entries.FirstOrDefault();
+
+            // Assert.
+            Assert.NotNull(entry);
+            Assert.Equal(expectedFileName, entry.Name);
+        }
+    
+        [Fact]
+        public async Task Should_Generate_PDFs_From_Boleto_Concurrently()
+        {
+            // Definir a quantidade de boletos a serem gerados.
+            int numberOfBoletos = 100;
+
+            // Gerar uma lista de boletos para o teste.
+            List<Boleto> boletos = Enumerable.Range(1, numberOfBoletos)
+                                             .Select(i => { 
+                                                var boleto = BoletoGenerator.GenerateBoleto1();
+                                                 boleto.Titulo.Pagador.Nome += $" - {i}";
+                                                 boleto.Titulo.ValorNominal = i;
+                                                return boleto;
+                                             })
+                                             .ToList();
+
+            // Configura o BoletoReportBuilder.
+            /*var reportBuilder = new BoletoReportBuilder()
+                .Configure((PrintSettings options) =>
+                {
+                    options.PaymentLocation = "PAGÁVEL EM QUALQUER BANCO ATÉ O VENCIMENTO.";
+                    options.Beneficiary = new BeneficiarySettings
+                    {
+                        Agency = "1234",
+                        Code = "123456",
+                        Name = "EMPRESA TESTE",
+                        CpfCnpj = "12345678901123",
+                        Address = "RUA TESTE, 123",
+                        City = "PORTO ALEGRE",
+                        State = "RS",
+                        ZipCode = "90000-000"
+                    };
+                })
+                .Build();*/
+
+            // Gera PDFs de forma concorrente usando Task.WhenAll.
+            var pdfTasks = boletos.Select(async boleto =>
+            {
+                var report = new BoletoReportBuilder()
+                    .Configure((PrintSettings options) =>
+                    {
+                        options.PaymentLocation = "PAGÁVEL EM QUALQUER BANCO ATÉ O VENCIMENTO.";
+                        options.Beneficiary = new BeneficiarySettings
+                        {
+                            Code = "123456",
+                            Name = "EMPRESA TESTE",
+                            CpfCnpj = "12345678901123",
+                            Address = "RUA TESTE, 123",
+                            City = "PORTO ALEGRE",
+                            State = "RS",
+                            ZipCode = "90000-000"
+                        };
+                    })
+                    .Build();
+
+                return await report.PrintAsync(boleto);
+            });
+
+            // Executar todas as tarefas em paralelo e esperar pelos resultados.
+            byte[][] pdfResults = await Task.WhenAll(pdfTasks);
+
+            // Verificar se cada PDF é único
+            for (int i = 0; i < pdfResults.Length; i++)
+            {
+                for (int j = i + 1; j < pdfResults.Length; j++)
+                {
+                    Assert.NotEqual(pdfResults[i], pdfResults[j]);  // Verifica se os PDFs são diferentes.
+                }
+            }
+
+            // Salvar os PDFs gerados para verificação manual.
+            for (int i = 0; i < pdfResults.Length; i++)
+            {
+                File.WriteAllBytes($"boleto_test_{i + 1}.pdf", pdfResults[i]);
+            }
+
+            // Verifica se todos os PDFs foram gerados corretamente.
+            Assert.All(pdfResults, pdf => Assert.NotNull(pdf));
+        }
+
+    }
+}

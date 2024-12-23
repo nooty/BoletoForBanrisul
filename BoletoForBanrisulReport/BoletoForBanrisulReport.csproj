@@ -1,0 +1,69 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+	<TargetFramework>netstandard2.0</TargetFramework>
+	<ImplicitUsings>enable</ImplicitUsings>
+	<LangVersion>latest</LangVersion>
+	<DebugType>embedded</DebugType>
+	<Nullable>enable</Nullable>
+	<RootNamespace>$(MSBuildProjectName.Replace(" ", "_").Replace("Report", ".Report"))</RootNamespace>
+	<Title>$(AssemblyName.Replace("Report", ".Report"))</Title>
+	<Authors>Nooty</Authors>
+	<Product>$(AssemblyName.Replace("Report", ".Report"))</Product>
+	<PackageProjectUrl>https://github.com/nooty/BoletoForBanrisul</PackageProjectUrl>
+	<RepositoryUrl>https://github.com/nooty/BoletoForBanrisul</RepositoryUrl>
+	<Description>BoletoForBanrisul.Report is a .NET component that allows the export of boletos in PDF format.
+
+Key features:
+
+1. Generation of boletos in PDF format
+2. Generation of a zip file containing generated boleto PDFs
+
+This package uses shared boleto models from BoletoForBanrisul.Core.
+
+Notes:
+The component depends on the DinkToPdf library for generating boleto PDFs. Therefore, the native wkhtmltopdf library must be included in the project's execution directory.</Description>
+	<PackageLicenseFile>LICENSE</PackageLicenseFile>
+	<PackageId>$(AssemblyName.Replace("Report", ".Report"))</PackageId>
+	<GenerateDocumentationFile>True</GenerateDocumentationFile>
+	<Version>1.0.0-rc.5</Version>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Remove="Resources\Banrisul.png" />
+    <None Remove="Resources\Boleto.cshtml" />
+    <None Remove="Resources\Messages.cshtml" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Resources\Banrisul.png">
+      <CopyToOutputDirectory>Never</CopyToOutputDirectory>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Resources\Boleto.cshtml">
+      <CopyToOutputDirectory>Never</CopyToOutputDirectory>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Resources\Messages.cshtml">
+      <CopyToOutputDirectory>Never</CopyToOutputDirectory>
+    </EmbeddedResource>
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="..\LICENSE">
+      <Pack>True</Pack>
+      <PackagePath>\</PackagePath>
+    </None>
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\BoletoForBanrisulCore\BoletoForBanrisulCore.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="ChromeHtmlToPdf" Version="4.2.10" />
+    <PackageReference Include="DinkToPdf" Version="1.0.8" />
+    <PackageReference Include="RazorLight" Version="2.3.1" />
+    <PackageReference Include="SkiaSharp" Version="2.88.7" />
+    <PackageReference Include="ZXing.Net.Bindings.SkiaSharp" Version="0.16.14" />
+  </ItemGroup>
+
+</Project>

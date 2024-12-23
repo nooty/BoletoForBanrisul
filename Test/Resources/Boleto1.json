@@ -1,0 +1,96 @@
+{
+  "ambiente": "T",
+  "titulo": {
+    "nosso_numero": "264",
+    "seu_numero": "64452-A",
+    "data_vencimento": "2021-01-07",
+    "valor_nominal": "100000.04",
+    "especie": "31",
+    "data_emissao": "2021-01-07",
+    "valor_iof": "100000.04",
+    "id_titulo_empresa": "RE-201609/1",
+    "pagador": {
+      "tipo_pessoa": "F",
+      "cpf_cnpj": "67524451091",
+      "nome": "PAGADOR FICTICIO",
+      "endereco": "RUA CALDAS JUNIOR 120",
+      "cep": "90010260",
+      "cidade": "PORTO ALEGRE",
+      "uf": "RS",
+      "aceite": "A"
+    },
+    "sacador": {
+      "tipo_pessoa": "F",
+      "cpf_cnpj": "67524451091",
+      "nome": "SACADOR FICTICIO",
+      "endereco": "RUA CALDAS JUNIOR 120",
+      "cep": "90010260"
+    },
+    "instrucoes": {
+      "juros": {
+        "codigo": 3,
+        "data": "2021-01-07",
+        "valor": "100000.04",
+        "taxa": "1.04"
+      },
+      "multa": {
+        "codigo": 1,
+        "data": "2021-01-07",
+        "valor": "100.04",
+        "taxa": "0.4"
+      },
+      "desconto": {
+        "codigo": 3,
+        "data": "2021-01-07",
+        "valor": "6.95",
+        "taxa": "0.45"
+      },
+      "abatimento": {
+        "valor": "6.80"
+      },
+      "protesto": {
+        "codigo": 3,
+        "prazo": 30
+      },
+      "baixa": {
+        "codigo": 1,
+        "prazo": 30
+      }
+    },
+    "pag_parcial": {
+      "autoriza": 2,
+      "codigo": 3,
+      "quantidade": 3,
+      "tipo": 1,
+      "valor_min": "18.30",
+      "valor_max": "18.30",
+      "percentual_min": "18.30",
+      "percentual_max": "18.30"
+    },
+    "mensagens": [
+      {
+        "linha": 3,
+        "texto": "Exemplo de mensagem"
+      }
+    ],
+    "rateio": {
+      "codigo": 1,
+      "tipo_valor": 2,
+      "beneficiarios": [
+        {
+          "codigo": "0010000001088",
+          "valor": "16.25",
+          "percentual": "16.253",
+          "parcela": 2
+        }
+      ]
+    },
+    "hibrido": {
+      "autoriza": "S",
+      "copia_cola": "000201 010212 26580014BR.GOV.BCB.PIX0115example@email.com0208Compra5520400005303986540550.005802BR5913NOME DA LOJA6009CIDADE0006270400"
+    },
+    "codigo_barras": "04196861100000150502100100000010000000004089",
+    "linha_digitavel": "04192100180000001000900000040899686110000015050",
+    "carteira": 1
+  }
+}

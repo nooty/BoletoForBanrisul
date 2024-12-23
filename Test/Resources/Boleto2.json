@@ -1,0 +1,46 @@
+{
+  "ambiente": "T",
+  "titulo": {
+    "seu_numero": "64452-1",
+    "data_vencimento": "2021-05-05",
+    "valor_nominal": "150.50",
+    "especie": "99",
+    "data_emissao": "2021-03-17",
+    "id_titulo_empresa": "0011000000000000000064452",
+    "pagador": {
+      "tipo_pessoa": "F",
+      "cpf_cnpj": "00000000191",
+      "nome": "PAGADOR FICTICIO",
+      "endereco": "RUA CALDAS JUNIOR 120",
+      "cep": "90010260",
+      "cidade": "PORTO ALEGRE",
+      "uf": "RS",
+      "aceite": "A"
+    },
+    "instrucoes": {
+      "juros": {
+        "codigo": 3
+      },
+      "multa": {
+        "codigo": 2,
+        "data": "2021-05-06",
+        "taxa": "0.4"
+      },
+      "desconto": {
+        "codigo": 1,
+        "data": "2021-05-03",
+        "valor": "6.95"
+      },
+      "abatimento": {
+        "valor": "6.80"
+      },
+      "protesto": {
+        "codigo": 3
+      }
+    },
+    "pag_parcial": {
+      "autoriza": 2,
+      "codigo": 3
+    }
+  }
+}

@@ -1,0 +1,22 @@
+@using BoletoForBanrisul.Report.Helpers
+@using BoletoForBanrisul.Core.Helpers
+@inherits TemplatePage<BoletoForBanrisul.Core.Models.Boleto>
+ 
+@if ((Model.Titulo.Mensagens == null || Model.Titulo.Mensagens.Count == 0) && Model.Titulo.Instrucoes != null)
+{
+    foreach (var mensagem in InstructionHelper.ConvertInstructionsToMessages(Model.Titulo.Instrucoes))
+    {
+        <div class="message">@mensagem.Texto</div>
+    }
+}
+else if (Model.Titulo.Mensagens != null)
+{
+    foreach (var mensagem in Model.Titulo.Mensagens)
+    {
+        <div class="message">@mensagem.Texto</div>
+    }
+}
+else
+{
+    <div class="message"></div>
+}

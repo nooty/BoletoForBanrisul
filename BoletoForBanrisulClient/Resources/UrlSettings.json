@@ -1,0 +1,23 @@
+{
+  "Production": {
+    "BaseUrl":  "https://api.banrisul.com.br",
+    "RegisterBoletoEndpoint": "cobranca/v1/boletos",
+    "GetBoletoEndpoint": "cobranca/v1/boletos/{idBoleto}",
+    "ChangeDueDateEndpoint": "cobranca/v1/boletos/{idBoleto}",
+    "GrantAbatementEndpoint": "cobranca/v1/boletos/{idBoleto}",
+    "CancelBoletoEndpoint": "cobranca/v1/boletos/{idBoleto}/baixar",
+    "IssueBoletoEndpoint": "cobranca/v1/boletos/{idBoleto}/emitir",
+    "TokenEndpoint": "auth/oauth/v2/token"
+  },
+
+  "Sandbox": {
+    "BaseUrl":  "https://apidev.banrisul.com.br",
+    "RegisterBoletoEndpoint": "cobranca/v1/boletos",
+    "GetBoletoEndpoint": "cobranca/v1/boletos/{idBoleto}",
+    "ChangeDueDateEndpoint": "cobranca/v1/boletos/{idBoleto}",
+    "GrantAbatementEndpoint": "cobranca/v1/boletos/{idBoleto}",
+    "CancelBoletoEndpoint": "cobranca/v1/boletos/{idBoleto}/baixar",
+    "IssueBoletoEndpoint": "cobranca/v1/boletos/{idBoleto}/emitir",
+    "TokenEndpoint": "auth/oauth/v2/token"
+  }
+}
