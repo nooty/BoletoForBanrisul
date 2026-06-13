@@ -20,8 +20,8 @@
 
   <ItemGroup>
     <ProjectReference Include="..\BoletoForBanrisulCore\BoletoForBanrisulCore.csproj" />
-    <ProjectReference Include="..\BoletoForBanrisulClientExtensions\BoletoForBanrisulClientExtensions.csproj" />
-    <ProjectReference Include="..\BoletoForBanrisulReportExtensions\BoletoForBanrisulReportExtensions.csproj" />
+    <ProjectReference Include="..\BoletoForBanrisulClient\BoletoForBanrisulClient.csproj" />
+    <ProjectReference Include="..\BoletoForBanrisulReport\BoletoForBanrisulReport.csproj" />
   </ItemGroup>
 
   <ItemGroup>

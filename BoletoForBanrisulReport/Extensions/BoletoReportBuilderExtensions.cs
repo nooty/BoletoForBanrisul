@@ -1,6 +1,6 @@
-﻿using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
-using BoletoForBanrisul.Report.Utils;
+using System;
 
 namespace BoletoForBanrisul.Report.Extensions
 {

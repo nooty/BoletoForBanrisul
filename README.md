@@ -21,6 +21,8 @@ O componente **BoletoForBanrisul.Client** é um client .NET que oferece integra�
  
 O componente também gerencia o processo de autenticação OAuth2. Os tokens de retorno são armazenados em cache para reutilização, facilitando a utilização da API de cobrança.
 
+O pacote também inclui extensões para registrar o builder no contêiner de injeção de dependência do .NET.
+
 Para a exportação de boletos em formato PDF localmente, utilize o componente complementar **BoletoForBanrisul.Report**.
 
 ### 3. **BoletoForBanrisul.Report**
@@ -31,6 +33,8 @@ Para a exportação de boletos em formato PDF localmente, utilize o componente c
 - Geração de arquivo zip contendo múltiplos PDFs de boletos gerados
 
 Este componente utiliza os modelos compartilhados do **BoletoForBanrisul.Core**, sem depender do **BoletoForBanrisul.Client**.
+
+O pacote também inclui extensões para registrar o builder no contêiner de injeção de dependência do .NET.
 
 **Observações**:
 O componente depende da biblioteca DinkToPdf para a geração dos PDFs de boletos. Assim, a biblioteca nativa wkhtmltopdf deve ser incluída no diretório de execução do projeto.
@@ -56,6 +60,35 @@ Para instalar o **BoletoForBanrisul.Report**:
 
 ```bash
 dotnet add package BoletoForBanrisul.Report
+```
+
+## Injeção de dependência
+
+Para registrar o builder do client:
+
+```csharp
+using BoletoForBanrisul.Client.Extensions;
+
+services.AddBoletoForBanrisulClientBuilder(builder =>
+{
+    builder
+        .SetAuthentication("client-id", "client-secret")
+        .SetBeneficiary("codigo-beneficiario");
+});
+```
+
+Para registrar o builder de relatórios:
+
+```csharp
+using BoletoForBanrisul.Report.Extensions;
+
+services.AddBoletoForBanrisulReportBuilder(builder =>
+{
+    builder.Configure(options =>
+    {
+        options.PaymentLocation = "PAGAR EM QUALQUER BANCO OU CORRESPONDENTE BANCÁRIO.";
+    });
+});
 ```
 
 ## Testes
