@@ -2,7 +2,6 @@ using BoletoForBanrisul.Core.Helpers;
 using BoletoForBanrisul.Core.Models;
 using BoletoForBanrisul.Report.Utils;
 using BoletoForBanrisul.Report.ViewModels;
-using DinkToPdf;
 using RazorLight;
 using System;
 using System.Collections.Generic;
@@ -21,6 +20,8 @@ namespace BoletoForBanrisul.Report
 
         private PrintSettings _settings;
         private IPdfConverter _pdfConverter;
+        private readonly RazorLightEngine _razorEngine;
+        private readonly string _templateKey;
         private readonly string _resourcesNamespace = "BoletoForBanrisul.Report.Resources";
         private readonly string _templateResourceName = "Boleto.cshtml";
         private readonly string _logoResource = "BoletoForBanrisul.Report.Resources.Banrisul.png";
@@ -30,6 +31,30 @@ namespace BoletoForBanrisul.Report
             _settings = settings;
             _pdfConverter = pdfConverter;
             ValidateSettings();
+
+            (_razorEngine, _templateKey) = BuildRazorEngine();
+        }
+
+        private (RazorLightEngine Engine, string TemplateKey) BuildRazorEngine()
+        {
+            if (string.IsNullOrEmpty(_settings.TemplateDirectoryPath))
+            {
+                var engine = new RazorLightEngineBuilder()
+                    .UseEmbeddedResourcesProject(typeof(BoletoReport).Assembly, _resourcesNamespace)
+                    .SetOperatingAssembly(Assembly.GetExecutingAssembly())
+                    .UseMemoryCachingProvider()
+                    .Build();
+
+                return (engine, _templateResourceName);
+            }
+
+            var fileEngine = new RazorLightEngineBuilder()
+                .UseFileSystemProject(_settings.TemplateDirectoryPath)
+                .SetOperatingAssembly(Assembly.GetExecutingAssembly())
+                .UseMemoryCachingProvider()
+                .Build();
+
+            return (fileEngine, _settings.TemplateFileName);
         }
 
         public async Task<byte[]> PrintAsync(Boleto boleto)
@@ -38,10 +63,7 @@ namespace BoletoForBanrisul.Report
 
             try
             {
-                string boletoHtml =
-                    string.IsNullOrEmpty(_settings.TemplateDirectoryPath) ?
-                    await RenderBoletoHtmlFromResources(boleto) :
-                    await RenderBoletoHtmlFromFile(boleto);
+                var boletoHtml = await RenderBoletoHtml(boleto);
 
                 return await _pdfConverter.ConvertToPdfAsync(boletoHtml);
             }
@@ -107,28 +129,10 @@ namespace BoletoForBanrisul.Report
             return new string(input.Where(char.IsDigit).ToArray());
         }
 
-        private async Task<string> RenderBoletoHtmlFromFile(Boleto boleto)
+        private async Task<string> RenderBoletoHtml(Boleto boleto)
         {
-            var engine = new RazorLightEngineBuilder()
-                .UseFileSystemProject(_settings.TemplateDirectoryPath)
-                .SetOperatingAssembly(Assembly.GetExecutingAssembly())
-                .UseMemoryCachingProvider()
-                .Build();
-
             PrintViewModel viewModel = GenerateViewModel(boleto);
-            return await engine.CompileRenderAsync(_settings.TemplateFileName, viewModel);
-        }
-
-        private async Task<string> RenderBoletoHtmlFromResources(Boleto boleto)
-        {
-            var engine = new RazorLightEngineBuilder()
-                .UseEmbeddedResourcesProject(typeof(BoletoReport).Assembly, _resourcesNamespace)
-                .SetOperatingAssembly(Assembly.GetExecutingAssembly())
-                .UseMemoryCachingProvider()
-                .Build();
-
-            PrintViewModel viewModel = GenerateViewModel(boleto);
-            return await engine.CompileRenderAsync(_templateResourceName, viewModel);
+            return await _razorEngine.CompileRenderAsync(_templateKey, viewModel);
         }
 
         private PrintViewModel GenerateViewModel(Boleto boleto)
