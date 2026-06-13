@@ -82,10 +82,12 @@ namespace BoletoForBanrisul.Report
                 using var zipStream = new MemoryStream();
                 using (var zipArchive = new ZipArchive(zipStream, ZipArchiveMode.Create))
                 {
+                    var usedFileNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
                     foreach (var boleto in boletos)
                     {
                         var pdfBytes = await PrintAsync(boleto);
-                        var zipEntryName = GetFileNameForBoleto(boleto);
+                        var zipEntryName = GetUniqueFileNameForBoleto(boleto, usedFileNames);
 
                         var zipEntry = zipArchive.CreateEntry(zipEntryName);
 
@@ -100,6 +102,25 @@ namespace BoletoForBanrisul.Report
             finally
             {
                 _zipSemaphore.Release();
+            }
+        }
+
+        private string GetUniqueFileNameForBoleto(Boleto boleto, HashSet<string> usedFileNames)
+        {
+            var fileName = GetFileNameForBoleto(boleto);
+
+            if (usedFileNames.Add(fileName))
+                return fileName;
+
+            var extension = Path.GetExtension(fileName);
+            var baseName = Path.GetFileNameWithoutExtension(fileName);
+
+            for (var counter = 2; ; counter++)
+            {
+                var candidate = $"{baseName} ({counter}){extension}";
+
+                if (usedFileNames.Add(candidate))
+                    return candidate;
             }
         }
 
