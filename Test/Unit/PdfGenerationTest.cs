@@ -109,14 +109,12 @@ namespace Test
         }
     
         [Fact]
-        public async Task Should_Generate_PDFs_From_Boleto_Concurrently()
+        public async Task Should_Generate_Distinct_PDFs_For_Different_Boletos()
         {
-            // Definir a quantidade de boletos a serem gerados.
             int numberOfBoletos = 100;
 
-            // Gerar uma lista de boletos para o teste.
             List<Boleto> boletos = Enumerable.Range(1, numberOfBoletos)
-                                             .Select(i => { 
+                                             .Select(i => {
                                                 var boleto = BoletoGenerator.GenerateBoleto1();
                                                  boleto.Titulo.Pagador.Nome += $" - {i}";
                                                  boleto.Titulo.ValorNominal = i;
@@ -124,26 +122,6 @@ namespace Test
                                              })
                                              .ToList();
 
-            // Configura o BoletoReportBuilder.
-            /*var reportBuilder = new BoletoReportBuilder()
-                .Configure((PrintSettings options) =>
-                {
-                    options.PaymentLocation = "PAGÁVEL EM QUALQUER BANCO ATÉ O VENCIMENTO.";
-                    options.Beneficiary = new BeneficiarySettings
-                    {
-                        Agency = "1234",
-                        Code = "123456",
-                        Name = "EMPRESA TESTE",
-                        CpfCnpj = "12345678901123",
-                        Address = "RUA TESTE, 123",
-                        City = "PORTO ALEGRE",
-                        State = "RS",
-                        ZipCode = "90000-000"
-                    };
-                })
-                .Build();*/
-
-            // Gera PDFs de forma concorrente usando Task.WhenAll.
             var pdfTasks = boletos.Select(async boleto =>
             {
                 var report = new BoletoReportBuilder()
@@ -166,25 +144,22 @@ namespace Test
                 return await report.PrintAsync(boleto);
             });
 
-            // Executar todas as tarefas em paralelo e esperar pelos resultados.
             byte[][] pdfResults = await Task.WhenAll(pdfTasks);
 
-            // Verifica se cada PDF é único.
             for (int i = 0; i < pdfResults.Length; i++)
             {
                 for (int j = i + 1; j < pdfResults.Length; j++)
                 {
-                    Assert.NotEqual(pdfResults[i], pdfResults[j]);  // Verifica se os PDFs são diferentes.
+                    Assert.NotEqual(pdfResults[i], pdfResults[j]);
                 }
             }
 
-            // Salvar os PDFs gerados para verificação manual.
+            // Persiste os PDFs gerados para inspeção manual.
             for (int i = 0; i < pdfResults.Length; i++)
             {
                 File.WriteAllBytes($"boleto_test_{i + 1}.pdf", pdfResults[i]);
             }
 
-            // Verifica se todos os PDFs foram gerados corretamente.
             Assert.All(pdfResults, pdf => Assert.NotNull(pdf));
         }
 
