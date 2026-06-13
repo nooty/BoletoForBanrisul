@@ -32,21 +32,24 @@ namespace BoletoForBanrisul.Report.Utils
                 Directory.CreateDirectory(_chromiumProfilePath);
         }
 
-        public async Task<byte[]> ConvertToPdfAsync(string html)
+        public Task<byte[]> ConvertToPdfAsync(string html)
         {
-            var pageSettings = new PageSettings();
-            using var converter = new Converter(userProfile: _chromiumProfilePath);
-
-            using var byteStream = new MemoryStream();
-
-            foreach (var argument in _chromiumArguments)
+            return Task.Run(() =>
             {
-                converter.AddChromiumArgument(argument);
-            }
+                var pageSettings = new PageSettings();
+                using var converter = new Converter(userProfile: _chromiumProfilePath);
 
-            converter.ConvertToPdf(html, byteStream, pageSettings, conversionTimeout: _conversionTimeout);
+                using var byteStream = new MemoryStream();
 
-            return byteStream.ToArray();
+                foreach (var argument in _chromiumArguments)
+                {
+                    converter.AddChromiumArgument(argument);
+                }
+
+                converter.ConvertToPdf(html, byteStream, pageSettings, conversionTimeout: _conversionTimeout);
+
+                return byteStream.ToArray();
+            });
         }
     }
 }
