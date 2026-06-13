@@ -37,8 +37,7 @@ Este componente utiliza os modelos compartilhados do **BoletoForBanrisul.Core**,
 O pacote também inclui extensões para registrar o builder no contêiner de injeção de dependência do .NET.
 
 **Observações**:
-O componente depende da biblioteca DinkToPdf para a geração dos PDFs de boletos. Assim, a biblioteca nativa wkhtmltopdf deve ser incluída no diretório de execução do projeto.
-Acesse https://github.com/rdvojmoc/DinkToPdf para mais informações.
+O componente utiliza a biblioteca ChromiumHtmlToPdfLib para a geração dos PDFs de boletos, através do Google Chrome/Chromium em modo headless. É necessário que o Chrome ou Chromium esteja instalado no ambiente de execução.
 
 ## Instalação
 

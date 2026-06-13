@@ -22,7 +22,7 @@ Key features:
 This package uses shared boleto models from BoletoForBanrisul.Core.
 
 Notes:
-The component depends on the DinkToPdf library for generating boleto PDFs. Therefore, the native wkhtmltopdf library must be included in the project's execution directory.</Description>
+The component uses the ChromiumHtmlToPdfLib library to generate boleto PDFs via headless Chrome/Chromium. A compatible Chrome or Chromium installation must be available in the execution environment.</Description>
 	<PackageLicenseFile>LICENSE</PackageLicenseFile>
 	<PackageId>$(AssemblyName.Replace("Report", ".Report"))</PackageId>
 	<GenerateDocumentationFile>True</GenerateDocumentationFile>
@@ -61,7 +61,6 @@ The component depends on the DinkToPdf library for generating boleto PDFs. There
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="8.0.2" />
     <PackageReference Include="ChromeHtmlToPdf" Version="4.2.10" />
-    <PackageReference Include="DinkToPdf" Version="1.0.8" />
     <PackageReference Include="RazorLight" Version="2.3.1" />
     <PackageReference Include="SkiaSharp" Version="2.88.7" />
     <PackageReference Include="ZXing.Net.Bindings.SkiaSharp" Version="0.16.14" />

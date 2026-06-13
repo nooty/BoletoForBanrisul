@@ -1,6 +1,5 @@
 using BoletoForBanrisul.Report.Utils;
 using BoletoForBanrisul.Report;
-using DinkToPdf.Contracts;
 using Microsoft.Extensions.DependencyInjection;
 using Moq;
 using System;
@@ -9,7 +8,6 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using BoletoForBanrisul.Report.Extensions;
-using DinkToPdf;
 
 namespace Test
 {
@@ -30,27 +28,6 @@ namespace Test
             // Assert
             Assert.NotNull(descriptor);
             Assert.Equal(ServiceLifetime.Transient, descriptor.Lifetime);
-        }
-
-        [Fact]
-        public void Should_Use_Converter_If_Registered()
-        {
-            // Arrange.
-            var services = new ServiceCollection();
-            var converter = new SynchronizedConverter(new PdfTools());
-
-            // Register IConverter as Singleton.
-            services.AddSingleton(converter);
-
-            // Act.
-            services.AddBoletoForBanrisulReportBuilder();
-
-            var serviceProvider = services.BuildServiceProvider();
-            var builder = serviceProvider.GetService<BoletoReportBuilder>();
-
-            // Assert.
-            Assert.NotNull(builder);
-            Assert.Equal(converter, DinkToPdfConverter.GetInstance(converter).Converter);
         }
 
         [Fact]
