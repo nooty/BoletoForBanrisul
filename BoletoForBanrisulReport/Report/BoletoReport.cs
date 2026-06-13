@@ -162,14 +162,13 @@ namespace BoletoForBanrisul.Report
 
         private byte[] GetLogoFromResource()
         {
-            var logoStream = Assembly.GetExecutingAssembly().GetManifestResourceStream(_logoResource);
-            byte[] logoBytes;
+            using var logoStream = Assembly.GetExecutingAssembly().GetManifestResourceStream(_logoResource)
+                ?? throw new InvalidOperationException($"Recurso de logo não encontrado. Resource={_logoResource}");
 
             using var memoryStream = new MemoryStream();
             logoStream.CopyTo(memoryStream);
-            logoBytes = memoryStream.ToArray();
 
-            return logoBytes;
+            return memoryStream.ToArray();
         }
 
         private string GetBase64Image(byte[] imageBytes, string imageType = "png")
@@ -183,13 +182,19 @@ namespace BoletoForBanrisul.Report
             if (!string.IsNullOrEmpty(_settings.LogoFilePath) && !File.Exists(_settings.LogoFilePath))
                 throw new InvalidOperationException($"Arquivo para o logo do boleto inválido. File={_settings.LogoFilePath}");
 
-            if (!string.IsNullOrEmpty(_settings.TemplateDirectoryPath) && !Directory.Exists(_settings.TemplateDirectoryPath))
-                throw new InvalidOperationException($"Caminho do arquivo de template inválido. Path={_settings.TemplateDirectoryPath}");
+            if (!string.IsNullOrEmpty(_settings.TemplateDirectoryPath))
+            {
+                if (!Directory.Exists(_settings.TemplateDirectoryPath))
+                    throw new InvalidOperationException($"Caminho do arquivo de template inválido. Path={_settings.TemplateDirectoryPath}");
 
-            var templateFilePath = Path.Combine(_settings.TemplateDirectoryPath, _settings.TemplateFileName);
+                if (string.IsNullOrEmpty(_settings.TemplateFileName))
+                    throw new InvalidOperationException("Nome do arquivo de template não foi configurado.");
 
-            if (!string.IsNullOrEmpty(_settings.TemplateFileName) && !File.Exists(templateFilePath))
-                throw new InvalidOperationException($"Arquivo de template do boleto inválido. File={templateFilePath}");
+                var templateFilePath = Path.Combine(_settings.TemplateDirectoryPath, _settings.TemplateFileName);
+
+                if (!File.Exists(templateFilePath))
+                    throw new InvalidOperationException($"Arquivo de template do boleto inválido. File={templateFilePath}");
+            }
 
             if (string.IsNullOrEmpty(_settings.FileNameTemplate))
                 throw new InvalidOperationException("Template para nome de boleto exportado não foi configurado.");
