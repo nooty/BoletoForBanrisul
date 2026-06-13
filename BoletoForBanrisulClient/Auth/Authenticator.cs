@@ -5,6 +5,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Runtime;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
@@ -25,12 +26,20 @@ namespace BoletoForBanrisul.Client.Auth
             _tokenStorage = tokenStorage;
             _httpClient = httpClient;
             _settings = settings;
-            _tokenKey = $"{_settings.ClientId}:{_settings.ClientSecret}";
+            _tokenKey = ComputeTokenKey(_settings.ClientId, _settings.ClientSecret);
         }
 
         public async Task<string> GetAccessTokenAsync()
         {
             return await _tokenStorage.GetOrAddToken(_tokenKey, RequestNewTokenAsync);
+        }
+
+        // Gera uma chave de cache que não expõe o client secret para implementações de ITokenStorage.
+        private static string ComputeTokenKey(string clientId, string clientSecret)
+        {
+            using var sha256 = SHA256.Create();
+            var hash = sha256.ComputeHash(Encoding.UTF8.GetBytes($"{clientId}:{clientSecret}"));
+            return BitConverter.ToString(hash).Replace("-", "").ToLowerInvariant();
         }
 
         private async Task<OAuthToken> RequestNewTokenAsync()

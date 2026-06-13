@@ -228,7 +228,7 @@ namespace BoletoForBanrisul.Client
 
         private string GetUrlForIdType(string endpoint, string id, BoletoIdentifierType? typeId, string operationId = "")
         {
-            var transformedEndpoint = endpoint.Replace("{idBoleto}", id);
+            var transformedEndpoint = endpoint.Replace("{idBoleto}", Uri.EscapeDataString(id));
 
             var queryParams = new List<string>();
 
