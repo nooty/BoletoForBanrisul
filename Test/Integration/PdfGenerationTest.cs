@@ -13,10 +13,10 @@ using BoletoForBanrisul.Core.Models.Types;
 
 namespace Test
 {
-    [Trait("Category", "Unit")]
+    [Trait("Category", "Integration")]
     public class PdfGenerationTest
     {
-        [Fact]
+        [IntegrationFact]
         public async Task Should_Generate_PDF_From_Boleto1_Object()
         {
             Boleto boleto = BoletoGenerator.GenerateBoleto1();
@@ -55,7 +55,7 @@ namespace Test
             Assert.NotNull(pdf);
         }
 
-        [Theory]
+        [IntegrationTheory]
         [InlineData("{NossoNumero}_{SeuNumero}_{DataVencimento}_{NomePagador}", "123456_7890_20241005_Clie_nte Teste.pdf")]
         [InlineData("{NossoNumero}_{DataEmissao}_{CpfCnpjPagador}", "123456_20240930_12345678900.pdf")]
         [InlineData("{SeuNumero}_{NomePagador}_{DataVencimento}", "7890_Clie_nte Teste_20241005.pdf")]
@@ -108,7 +108,7 @@ namespace Test
             Assert.Equal(expectedFileName, entry.Name);
         }
     
-        [Fact]
+        [IntegrationFact]
         public async Task Should_Generate_Distinct_PDFs_For_Different_Boletos()
         {
             int numberOfBoletos = 100;
