@@ -13,7 +13,7 @@ namespace BoletoForBanrisul.Report.Utils
         /// Converte uma string HTML em um documento PDF de forma assíncrona.
         /// </summary>
         /// <param name="html">O conteúdo HTML a ser convertido em PDF.</param>
-        /// <returns>O arquivo PDF em formato de byte array.</returns>
+        /// <returns>O arquivo PDF em formato de array de bytes.</returns>
         Task<byte[]> ConvertToPdfAsync(string html);
     }
 }

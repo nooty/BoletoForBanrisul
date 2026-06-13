@@ -14,9 +14,10 @@ namespace BoletoForBanrisul.Client.Extensions
     public static class BoletoClientBuilderExtensions
     {
         /// <summary>
-        /// Adiciona o BoletoClientBuilder ao contêiner de injeção de dependência como um serviço transient.
-        /// Permite que o usuário configure o builder opcionalmente por meio de uma action.
+        /// Adiciona o BoletoClientBuilder ao contêiner de injeção de dependência como um serviço transiente.
+        /// Permite que o usuário configure o builder opcionalmente por meio de uma ação.
         /// </summary>
+        /// <param name="services">Coleção de serviços onde o BoletoClientBuilder será registrado.</param>
         /// <param name="configureBuilder">Ação opcional para configurar o BoletoClientBuilder.</param>
         public static IServiceCollection AddBoletoForBanrisulClientBuilder(this IServiceCollection services, Action<BoletoClientBuilder>? configureBuilder = null)
         {

@@ -9,7 +9,7 @@ namespace BoletoForBanrisul.Client.Auth
     public class OAuthToken
     {
         public string AccessToken { get; set; } = "";
-        public int ExpiresIn { get; set; } // Em segundos
+        public int ExpiresIn { get; set; } // Em segundos.
         public DateTimeOffset ExpirationTime { get; set; }
     }
 }

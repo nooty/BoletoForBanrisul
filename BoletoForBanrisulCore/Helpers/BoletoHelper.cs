@@ -12,7 +12,7 @@ namespace BoletoForBanrisul.Core.Helpers
         /// Calcula o Nosso Número completo (8 dígitos + 2 dígitos verificadores).
         /// Completa com zeros à esquerda se o número base tiver menos de 8 dígitos.
         /// </summary>
-        /// <param name="nossoNumeroBase">Número base para o cálculo.</param>
+        /// <param name="baseNumber">Número base para o cálculo.</param>
         /// <returns>Nosso Número completo com 10 dígitos.</returns>
         public static string GetOurNumberWithCheckDigits(string baseNumber)
         {
@@ -118,7 +118,7 @@ namespace BoletoForBanrisul.Core.Helpers
         }
 
         /// <summary>
-        /// Gera o Campo Livre do código de barras com base no código do beneficiário e no nosso número.
+        /// Gera o campo livre do código de barras com base no código do beneficiário e no nosso número.
         /// </summary>
         private static string GetFreeField(string beneficiaryCode, string ourNumber)
         {
@@ -148,20 +148,20 @@ namespace BoletoForBanrisul.Core.Helpers
         /// </summary>
         private static string GetDoubleCheckDigit(string baseNumber)
         {
-            // Módulo 10
+            // Módulo 10.
             int dv1 = GetCheckDigitMod10(baseNumber);
 
-            // Módulo 11
+            // Módulo 11.
             string controlNumbers = GetCheckDigitsMod11(baseNumber + dv1);
 
             return controlNumbers.ToString();
         }
 
         /// <summary>
-        /// Calcula o dígito verificador pelo Módulo 10.
+        /// Calcula o dígito verificador pelo módulo 10.
         /// </summary>
         /// <param name="number">O número base usado para o cálculo.</param>
-        /// <returns>Dígito verificador calculado pelo Módulo 10.</returns>
+        /// <returns>Dígito verificador calculado pelo módulo 10.</returns>
         private static int GetCheckDigitMod10(string number)
         {
             int[] weights = { 2, 1 };
@@ -183,10 +183,10 @@ namespace BoletoForBanrisul.Core.Helpers
         }
 
         /// <summary>
-        /// Calcula os dígitos verificadores pelo Módulo 11.
+        /// Calcula os dígitos verificadores pelo módulo 11.
         /// </summary>
-        /// <param name="number">O número base usado para o cálculo + DV1 cálculado pelo Mod10.</param>
-        /// <returns>Dígitos verificadores calculado pelo Módulo 11.</returns>
+        /// <param name="number">O número base usado para o cálculo + DV1 calculado pelo módulo 10.</param>
+        /// <returns>Dígitos verificadores calculados pelo módulo 11.</returns>
         private static string GetCheckDigitsMod11(string number)
         {
             int[] weights = { 2, 3, 4, 5, 6, 7 };
@@ -230,15 +230,15 @@ namespace BoletoForBanrisul.Core.Helpers
             DateTime baseDate = new DateTime(2000, 7, 3);
             int dayDifference = (int)(dueDate.Date - baseDate).TotalDays;
 
-            // Cálculo do fator de vencimento
+            // Cálculo do fator de vencimento.
             int factor = Math.Max((dayDifference % 9000) + 1000, 0);
 
-            // Retorna o valor como string de 4 dígitos
+            // Retorna o valor como string de 4 dígitos.
             return factor.ToString("D4");
         }
 
         /// <summary>
-        /// Calcula o DAC (Dígito de Autoconferência) usando o Módulo 11.
+        /// Calcula o DAC (Dígito de Autoconferência) usando o módulo 11.
         /// </summary>
         /// <param name="partialCode">Código parcial do boleto (sem o DAC).</param>
         /// <returns>O dígito DAC calculado.</returns>

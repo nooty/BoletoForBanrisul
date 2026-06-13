@@ -49,7 +49,7 @@ namespace Test
 
 			var pdf = await report.PrintAsync(boleto);
 
-            // Save to file.
+            // Salva o arquivo.
             File.WriteAllBytes("boleto1-test.pdf", pdf);
 
             Assert.NotNull(pdf);
@@ -169,7 +169,7 @@ namespace Test
             // Executar todas as tarefas em paralelo e esperar pelos resultados.
             byte[][] pdfResults = await Task.WhenAll(pdfTasks);
 
-            // Verificar se cada PDF é único
+            // Verifica se cada PDF é único.
             for (int i = 0; i < pdfResults.Length; i++)
             {
                 for (int j = i + 1; j < pdfResults.Length; j++)

@@ -51,7 +51,7 @@ namespace BoletoForBanrisul.Client
 
         /// <summary>
         /// Define o armazenamento de tokens para autenticação.
-        /// Esta configuração é opcional e pode ser utilizado para definir uma implementação personalizada de ITokenStorage.
+        /// Esta configuração é opcional e pode ser utilizada para definir uma implementação personalizada de ITokenStorage.
         /// </summary>
         /// <param name="tokenStorage">Uma implementação de ITokenStorage para armazenar tokens de autenticação.</param>
         /// <returns></returns>
@@ -63,7 +63,7 @@ namespace BoletoForBanrisul.Client
 
         /// <summary>
         /// Define as credenciais de autenticação para utilizar a API de cobrança.
-        /// As credenciais de autenticação são obrigatórias para configurar o client.
+        /// As credenciais de autenticação são obrigatórias para configurar o cliente.
         /// </summary>
         /// <param name="clientId">O Client ID fornecido pelo Banrisul.</param>
         /// <param name="clientSecret">O Client Secret fornecido pelo Banrisul.</param>
@@ -79,8 +79,8 @@ namespace BoletoForBanrisul.Client
         }
 
         /// <summary>
-        /// Seta o código do beneficiário.
-        /// O código do beneficiário é obrigatório para configurar o client.
+        /// Define o código do beneficiário.
+        /// O código do beneficiário é obrigatório para configurar o cliente.
         /// </summary>
         /// <param name="code">Código completo do beneficiário.</param>
         /// <returns></returns>
@@ -91,7 +91,7 @@ namespace BoletoForBanrisul.Client
         }
 
         /// <summary>
-        /// Indica que o client deve usar o ambiente de Sandbox para testes.
+        /// Indica que o cliente deve usar o ambiente de Sandbox para testes.
         /// </summary>
         /// <returns></returns>
         public BoletoClientBuilder UseSandbox()
@@ -129,7 +129,7 @@ namespace BoletoForBanrisul.Client
         }
 
         /// <summary>
-        /// Cria uma instância do client com as configurações aplicadas.
+        /// Cria uma instância do cliente com as configurações aplicadas.
         /// </summary>
         /// <returns></returns>
         public IBoletoClient Build()

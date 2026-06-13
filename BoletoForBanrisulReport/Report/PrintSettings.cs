@@ -11,7 +11,7 @@ namespace BoletoForBanrisul.Report
     public class PrintSettings
     {
         /// <summary>
-        /// Caminho para o arquivo onde o logo do boleto está armazenado.
+        /// Caminho para o arquivo onde o logotipo do boleto está armazenado.
         /// </summary>
         public string LogoFilePath { get; set; } = "";
         /// <summary>

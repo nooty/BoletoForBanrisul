@@ -11,7 +11,7 @@ using ZXing.Common;
 namespace BoletoForBanrisul.Report.Utils
 {
     /// <summary>
-    /// Classe utilitária para gerar códigos de barras e QR codes em formato Base64.
+    /// Classe utilitária para gerar códigos de barras e QR Codes em formato Base64.
     /// </summary>
     public static class BarcodeUtils
 	{
@@ -22,7 +22,7 @@ namespace BoletoForBanrisul.Report.Utils
         /// <returns>Uma string Base64 representando a imagem do código de barras gerado.</returns>
         public static string GenerateBarcodeAsBase64(string code)
 		{
-			// Conversão das dimensões para pixels (baseado em 96 DPI).
+			// Conversão das dimensões para pixels (com base em 96 DPI).
 			int widthInPixels = (int)(103 * 96 / 25.4); // Aproximadamente 389 pixels.
 			int heightInPixels = (int)(13 * 96 / 25.4); // Aproximadamente 49 pixels.
 
@@ -51,13 +51,13 @@ namespace BoletoForBanrisul.Report.Utils
 		}
 
         /// <summary>
-        /// Gera um QR code em formato Base64 a partir de um código fornecido.
+        /// Gera um QR Code em formato Base64 a partir de um código fornecido.
         /// </summary>
-        /// <param name="code">O código a ser convertido em um QR code.</param>
-        /// <returns>Uma string Base64 representando a imagem do QR code gerado.</returns>
+        /// <param name="code">O código a ser convertido em um QR Code.</param>
+        /// <returns>Uma string Base64 representando a imagem do QR Code gerado.</returns>
         public static string GenerateQRCodeAsBase64(string code)
         {
-            // Conversão das dimensões para pixels (baseado em 96 DPI).
+            // Conversão das dimensões para pixels (com base em 96 DPI).
             int sizeInPixels = (int)(25 * 96 / 25.4); // Aproximadamente 94 pixels para 25mm.
 
             var qrCodeWriter = new ZXing.SkiaSharp.BarcodeWriter

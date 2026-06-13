@@ -359,8 +359,8 @@ namespace BoletoForBanrisul.Core.Models
         public string? Location { get; set; }
 
         /// <summary>
-        /// Texto "Copia & Cola" responsável pela geração do QR Code
-        /// para pagamento via PIX (opcional).
+        /// Texto "Copia &amp; Cola" responsável pela geração do QR Code
+        /// para pagamento via Pix (opcional).
         /// Campo alfanumérico de até 512 caracteres.
         /// Retornado pelo banco.
         /// </summary>

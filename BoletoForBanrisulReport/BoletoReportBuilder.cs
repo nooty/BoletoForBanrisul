@@ -36,7 +36,7 @@ namespace BoletoForBanrisul.Report
 
         /// <summary>
         /// Define o conversor de PDF a ser utilizado pelo builder.
-        /// Esta configuração é opcional. Caso não seja definido, será utilizado o ChromiumHtmlToPdfConverter por padrão.
+        /// Esta configuração é opcional. Caso não seja definida, será utilizado o ChromiumHtmlToPdfConverter por padrão.
         /// </summary>
         /// <param name="pdfConverter">Instância do conversor de PDF a ser usada.</param>
         /// <returns></returns>
