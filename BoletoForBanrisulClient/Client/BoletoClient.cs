@@ -1,4 +1,5 @@
 using BoletoForBanrisul.Client.Auth;
+using BoletoForBanrisul.Client.Helpers;
 using BoletoForBanrisul.Core.Models;
 using System;
 using System.Collections.Generic;
@@ -30,14 +31,14 @@ namespace BoletoForBanrisul.Client
 
         public async Task<CreateBoletoResponse> CreateBoletoAsync(Boleto boleto)
         {
-            AddBeneficiaryHeader();
-
             var boletoJson = boleto.ToJson();
             var jsonContent = new StringContent(boletoJson, Encoding.UTF8, "application/json");
             var request = new HttpRequestMessage(HttpMethod.Post, _settings.RegisterBoletoUrl)
             {
                 Content = jsonContent
             };
+
+            AddBeneficiaryHeader(request);
 
             var response = await HandleRequestAsync(request);
 
@@ -47,9 +48,9 @@ namespace BoletoForBanrisul.Client
 
         public async Task<GetBoletoResponse> GetBoletoAsync(string idBoleto, BoletoIdentifierType? typeId = null)
         {
-            AddBeneficiaryHeader();
-
             var request = new HttpRequestMessage(HttpMethod.Get, GetUrlForIdType(_settings.GetBoletoUrl, idBoleto, typeId));
+
+            AddBeneficiaryHeader(request);
 
             var response = await HandleRequestAsync(request);
 
@@ -59,9 +60,6 @@ namespace BoletoForBanrisul.Client
 
         public async Task<GrantAbatementResponse> GrantAbatementAsync(string idBoleto, decimal abatement, BoletoIdentifierType? typeId = null)
         {
-            AddBeneficiaryHeader();
-            AddRequestModeHeader();
-
             var operation = new GrantAbatementRequest
             {
                 Titulo = new GrantAbatementDetails
@@ -85,6 +83,9 @@ namespace BoletoForBanrisul.Client
                 Content = jsonContent
             };
 
+            AddBeneficiaryHeader(request);
+            AddRequestModeHeader(request);
+
             var response = await HandleRequestAsync(request);
 
             var responseContent = await response.Content.ReadAsStringAsync();
@@ -93,9 +94,6 @@ namespace BoletoForBanrisul.Client
 
         public async Task<ChangeDueDateResponse> ChangeDueDateAsync(string idBoleto, DateTime newDueDate, BoletoIdentifierType? typeId = null)
         {
-            AddBeneficiaryHeader();
-            AddRequestModeHeader();
-
             var operation = new ChangeDueDateRequest
             {
                 Titulo = new ChangeDueDateDetails
@@ -113,6 +111,9 @@ namespace BoletoForBanrisul.Client
                 Content = jsonContent
             };
 
+            AddBeneficiaryHeader(request);
+            AddRequestModeHeader(request);
+
             var response = await HandleRequestAsync(request);
 
             var responseContent = await response.Content.ReadAsStringAsync();
@@ -121,10 +122,10 @@ namespace BoletoForBanrisul.Client
 
         public async Task<CancelBoletoResponse> CancelBoletoAsync(string idBoleto, BoletoIdentifierType? typeId = null)
         {
-            AddBeneficiaryHeader();
-            AddRequestModeHeader();
-
             var request = new HttpRequestMessage(HttpMethod.Post, GetUrlForIdType(_settings.CancelBoletoUrl, idBoleto, typeId));
+
+            AddBeneficiaryHeader(request);
+            AddRequestModeHeader(request);
 
             var response = await HandleRequestAsync(request);
 
@@ -134,10 +135,10 @@ namespace BoletoForBanrisul.Client
 
         public async Task<byte[]> IssueBoletoAsync(string idBoleto, BoletoIdentifierType? typeId)
         {
-            AddBeneficiaryHeader();
-            AddRequestModeHeader();
-
             var request = new HttpRequestMessage(HttpMethod.Get, GetUrlForIdType(_settings.IssueBoletoUrl, idBoleto, typeId));
+
+            AddBeneficiaryHeader(request);
+            AddRequestModeHeader(request);
 
             var response = await HandleRequestAsync(request);
 
@@ -150,8 +151,8 @@ namespace BoletoForBanrisul.Client
 
         private async Task<HttpResponseMessage> HandleRequestAsync(HttpRequestMessage request)
         {
-            await AddAuthorizationHeaderAsync();
-            
+            await AddAuthorizationHeaderAsync(request);
+
             var response = await _httpClient.SendAsync(request);
             
             await LogRequestResponseAsync(request, response);
@@ -182,7 +183,7 @@ namespace BoletoForBanrisul.Client
                 {
                     Method = request.Method.ToString(),
                     Url = request.RequestUri.ToString(),
-                    Headers = request.Headers.ToDictionary(h => h.Key, h => h.Value),
+                    Headers = SensitiveDataRedactor.RedactAuthorizationHeader(request.Headers.ToDictionary(h => h.Key, h => h.Value)),
                     Content = requestContent
                 };
 
@@ -206,28 +207,22 @@ namespace BoletoForBanrisul.Client
         }
 
         // Método auxiliar para adicionar o header Authorization.
-        private async Task AddAuthorizationHeaderAsync()
+        private async Task AddAuthorizationHeaderAsync(HttpRequestMessage request)
         {
             string token = await _authenticator.GetAccessTokenAsync();
-            _httpClient.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+            request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
         }
 
-        // Método auxiliar para adicionar headers extras (bergs-beneficiario e bergs-ambiente).
-        private void AddBeneficiaryHeader()
+        // Método auxiliar para adicionar o header bergs-beneficiario.
+        private void AddBeneficiaryHeader(HttpRequestMessage request)
         {
-            if (!_httpClient.DefaultRequestHeaders.Contains("bergs-beneficiario"))
-            {
-                _httpClient.DefaultRequestHeaders.Add("bergs-beneficiario", _settings.BeneficiaryCode);
-            }
+            request.Headers.Add("bergs-beneficiario", _settings.BeneficiaryCode);
         }
 
-        private void AddRequestModeHeader()
+        private void AddRequestModeHeader(HttpRequestMessage request)
         {
-            if (!_httpClient.DefaultRequestHeaders.Contains("bergs-ambiente"))
-            {
-                var requestMode = _settings.RequestMode == RequestModeType.Production ? "P" : "T";
-                _httpClient.DefaultRequestHeaders.Add("bergs-ambiente", requestMode);
-            }
+            var requestMode = _settings.RequestMode == RequestModeType.Production ? "P" : "T";
+            request.Headers.Add("bergs-ambiente", requestMode);
         }
 
 

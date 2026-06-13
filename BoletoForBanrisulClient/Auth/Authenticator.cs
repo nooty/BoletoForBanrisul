@@ -1,5 +1,6 @@
 using BoletoForBanrisul.Core.Converters;
 using BoletoForBanrisul.Client.Exceptions.Auth;
+using BoletoForBanrisul.Client.Helpers;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -102,26 +103,28 @@ namespace BoletoForBanrisul.Client.Auth
                 var responseContentFileName = Path.Combine(_settings.LogDirectory, $"AuthResponse_Content_{timestamp}_{guid}.json");
 
                 var requestContent = request.Content != null ? await request.Content.ReadAsStringAsync() : string.Empty;
+                var redactedRequestContent = SensitiveDataRedactor.RedactFormUrlEncodedField(requestContent, "client_secret");
                 var requestLog = new
                 {
                     Method = request.Method.ToString(),
                     Url = request.RequestUri.ToString(),
                     Headers = request.Headers.ToDictionary(h => h.Key, h => h.Value),
-                    Content = requestContent
+                    Content = redactedRequestContent
                 };
 
                 var responseContent = response.Content != null ? await response.Content.ReadAsStringAsync() : string.Empty;
+                var redactedResponseContent = SensitiveDataRedactor.RedactJsonField(responseContent, "access_token");
                 var responseLog = new
                 {
                     StatusCode = response.StatusCode,
                     Headers = response.Headers.ToDictionary(h => h.Key, h => h.Value),
-                    Content = responseContent
+                    Content = redactedResponseContent
                 };
 
                 File.WriteAllText(requestFileName, JsonSerializer.Serialize(requestLog, new JsonSerializerOptions { WriteIndented = true }));
-                File.WriteAllText(requestContentFileName, requestContent);
+                File.WriteAllText(requestContentFileName, redactedRequestContent);
                 File.WriteAllText(responseFileName, JsonSerializer.Serialize(responseLog, new JsonSerializerOptions { WriteIndented = true }));
-                File.WriteAllText(responseContentFileName, responseContent);
+                File.WriteAllText(responseContentFileName, redactedResponseContent);
             }
             catch (Exception ex)
             {
