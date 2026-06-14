@@ -68,7 +68,7 @@ Para registrar o builder do client:
 ```csharp
 using BoletoForBanrisul.Client.Extensions;
 
-services.AddBoletoForBanrisulClientBuilder(builder =>
+services.AddBoletoForBanrisulClientBuilder((builder, provider) =>
 {
     builder
         .SetAuthentication("client-id", "client-secret")
@@ -81,7 +81,7 @@ Para registrar o builder de relatórios:
 ```csharp
 using BoletoForBanrisul.Report.Extensions;
 
-services.AddBoletoForBanrisulReportBuilder(builder =>
+services.AddBoletoForBanrisulReportBuilder((builder, provider) =>
 {
     builder.Configure(options =>
     {

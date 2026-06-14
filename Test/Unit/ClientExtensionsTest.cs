@@ -32,7 +32,7 @@ namespace Test
             var invoked = false;
 
             // Act.
-            services.AddBoletoForBanrisulClientBuilder(builder =>
+            services.AddBoletoForBanrisulClientBuilder((builder, provider) =>
             {
                 invoked = true;
             });

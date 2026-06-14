@@ -38,7 +38,7 @@ namespace Test
             var customSettingsCalled = false;
 
             // Act.
-            services.AddBoletoForBanrisulReportBuilder(builder =>
+            services.AddBoletoForBanrisulReportBuilder((builder, provider) =>
             {
                 // Custom configuration action.
                 customSettingsCalled = true;
