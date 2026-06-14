@@ -29,7 +29,7 @@ namespace BoletoForBanrisul.Client
             _settings = config;
         }
 
-        public async Task<CreateBoletoResponse> CreateBoletoAsync(Boleto boleto)
+        public async Task<CreateBoletoResponse> CreateBoletoAsync(Boleto boleto, CancellationToken cancellationToken = default)
         {
             var boletoJson = boleto.ToJson();
             var jsonContent = new StringContent(boletoJson, Encoding.UTF8, "application/json");
@@ -40,25 +40,25 @@ namespace BoletoForBanrisul.Client
 
             AddBeneficiaryHeader(request);
 
-            var response = await HandleRequestAsync(request);
+            var response = await HandleRequestAsync(request, cancellationToken);
 
             var responseContent = await response.Content.ReadAsStringAsync();
             return Deserialize<CreateBoletoResponse>(responseContent);
         }
 
-        public async Task<GetBoletoResponse> GetBoletoAsync(string idBoleto, BoletoIdentifierType? typeId = null)
+        public async Task<GetBoletoResponse> GetBoletoAsync(string idBoleto, BoletoIdentifierType? typeId = null, CancellationToken cancellationToken = default)
         {
             var request = new HttpRequestMessage(HttpMethod.Get, GetUrlForIdType(_settings.GetBoletoUrl, idBoleto, typeId));
 
             AddBeneficiaryHeader(request);
 
-            var response = await HandleRequestAsync(request);
+            var response = await HandleRequestAsync(request, cancellationToken);
 
             var responseContent = await response.Content.ReadAsStringAsync();
             return Deserialize<GetBoletoResponse>(responseContent);
         }
 
-        public async Task<GrantAbatementResponse> GrantAbatementAsync(string idBoleto, decimal abatement, BoletoIdentifierType? typeId = null)
+        public async Task<GrantAbatementResponse> GrantAbatementAsync(string idBoleto, decimal abatement, BoletoIdentifierType? typeId = null, CancellationToken cancellationToken = default)
         {
             var operation = new GrantAbatementRequest
             {
@@ -86,13 +86,13 @@ namespace BoletoForBanrisul.Client
             AddBeneficiaryHeader(request);
             AddRequestModeHeader(request);
 
-            var response = await HandleRequestAsync(request);
+            var response = await HandleRequestAsync(request, cancellationToken);
 
             var responseContent = await response.Content.ReadAsStringAsync();
             return Deserialize<GrantAbatementResponse>(responseContent);
         }
 
-        public async Task<ChangeDueDateResponse> ChangeDueDateAsync(string idBoleto, DateTime newDueDate, BoletoIdentifierType? typeId = null)
+        public async Task<ChangeDueDateResponse> ChangeDueDateAsync(string idBoleto, DateTime newDueDate, BoletoIdentifierType? typeId = null, CancellationToken cancellationToken = default)
         {
             var operation = new ChangeDueDateRequest
             {
@@ -114,49 +114,47 @@ namespace BoletoForBanrisul.Client
             AddBeneficiaryHeader(request);
             AddRequestModeHeader(request);
 
-            var response = await HandleRequestAsync(request);
+            var response = await HandleRequestAsync(request, cancellationToken);
 
             var responseContent = await response.Content.ReadAsStringAsync();
             return Deserialize<ChangeDueDateResponse>(responseContent);
         }
 
-        public async Task<CancelBoletoResponse> CancelBoletoAsync(string idBoleto, BoletoIdentifierType? typeId = null)
+        public async Task<CancelBoletoResponse> CancelBoletoAsync(string idBoleto, BoletoIdentifierType? typeId = null, CancellationToken cancellationToken = default)
         {
             var request = new HttpRequestMessage(HttpMethod.Post, GetUrlForIdType(_settings.CancelBoletoUrl, idBoleto, typeId));
 
             AddBeneficiaryHeader(request);
             AddRequestModeHeader(request);
 
-            var response = await HandleRequestAsync(request);
+            var response = await HandleRequestAsync(request, cancellationToken);
 
             var responseContent = await response.Content.ReadAsStringAsync();
             return Deserialize<CancelBoletoResponse>(responseContent);
         }
 
-        public async Task<byte[]> IssueBoletoAsync(string idBoleto, BoletoIdentifierType? typeId)
+        public async Task<byte[]> IssueBoletoAsync(string idBoleto, BoletoIdentifierType? typeId = null, CancellationToken cancellationToken = default)
         {
             var request = new HttpRequestMessage(HttpMethod.Get, GetUrlForIdType(_settings.IssueBoletoUrl, idBoleto, typeId));
 
             AddBeneficiaryHeader(request);
             AddRequestModeHeader(request);
 
-            var response = await HandleRequestAsync(request);
-
-            await HandleErrors(response);
+            var response = await HandleRequestAsync(request, cancellationToken);
 
             var responseContent = Deserialize<IssueBoletoResponse>(await response.Content.ReadAsStringAsync());
 
             return Convert.FromBase64String(responseContent.Titulo.Boleto);
         }
 
-        private async Task<HttpResponseMessage> HandleRequestAsync(HttpRequestMessage request)
+        private async Task<HttpResponseMessage> HandleRequestAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
-            await AddAuthorizationHeaderAsync(request);
+            await AddAuthorizationHeaderAsync(request, cancellationToken);
 
-            var response = await _httpClient.SendAsync(request);
-            
+            var response = await _httpClient.SendAsync(request, cancellationToken);
+
             await LogRequestResponseAsync(request, response);
-            
+
             await HandleErrors(response);
 
             return response;
@@ -207,9 +205,9 @@ namespace BoletoForBanrisul.Client
         }
 
         // Método auxiliar para adicionar o header Authorization.
-        private async Task AddAuthorizationHeaderAsync(HttpRequestMessage request)
+        private async Task AddAuthorizationHeaderAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
-            string token = await _authenticator.GetAccessTokenAsync();
+            string token = await _authenticator.GetAccessTokenAsync(cancellationToken);
             request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
         }
 

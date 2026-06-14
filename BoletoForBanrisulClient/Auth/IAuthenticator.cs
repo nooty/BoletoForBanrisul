@@ -3,6 +3,6 @@ namespace BoletoForBanrisul.Client.Auth
 {
     public interface IAuthenticator
     {
-        Task<string> GetAccessTokenAsync();
+        Task<string> GetAccessTokenAsync(CancellationToken cancellationToken = default);
     }
 }

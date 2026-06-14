@@ -11,9 +11,9 @@ namespace BoletoForBanrisul.Client.Auth
         // Define a margem de segurança para expiração (5 minutos).
         private static readonly TimeSpan SafetyMargin = TimeSpan.FromMinutes(5);
 
-        public virtual async Task<string> GetOrAddToken(string key, Func<Task<OAuthToken>> generateNewToken)
+        public virtual async Task<string> GetOrAddToken(string key, Func<CancellationToken, Task<OAuthToken>> generateNewToken, CancellationToken cancellationToken = default)
         {
-            await _semaphore.WaitAsync();
+            await _semaphore.WaitAsync(cancellationToken);
 
             try
             {
@@ -21,7 +21,7 @@ namespace BoletoForBanrisul.Client.Auth
 
                 if (token == null || !IsTokenValid(key))
                 {
-                    token = await generateNewToken();
+                    token = await generateNewToken(cancellationToken);
                     StoreToken(key, token);
                 }
 

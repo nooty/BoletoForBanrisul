@@ -29,9 +29,9 @@ namespace BoletoForBanrisul.Client.Auth
             _tokenKey = ComputeTokenKey(_settings.ClientId, _settings.ClientSecret);
         }
 
-        public async Task<string> GetAccessTokenAsync()
+        public async Task<string> GetAccessTokenAsync(CancellationToken cancellationToken = default)
         {
-            return await _tokenStorage.GetOrAddToken(_tokenKey, RequestNewTokenAsync);
+            return await _tokenStorage.GetOrAddToken(_tokenKey, RequestNewTokenAsync, cancellationToken);
         }
 
         // Gera uma chave de cache que não expõe o client secret para implementações de ITokenStorage.
@@ -42,7 +42,7 @@ namespace BoletoForBanrisul.Client.Auth
             return BitConverter.ToString(hash).Replace("-", "").ToLowerInvariant();
         }
 
-        private async Task<OAuthToken> RequestNewTokenAsync()
+        private async Task<OAuthToken> RequestNewTokenAsync(CancellationToken cancellationToken)
         {
             var formData = new Dictionary<string, string>
             {
@@ -59,7 +59,7 @@ namespace BoletoForBanrisul.Client.Auth
                 Content = content
             };
 
-            var response = await _httpClient.SendAsync(request);
+            var response = await _httpClient.SendAsync(request, cancellationToken);
 
             await LogRequestResponseAsync(request, response);
 

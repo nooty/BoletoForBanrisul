@@ -11,7 +11,7 @@ namespace BoletoForBanrisul.Client.Auth
         void StoreToken(string key, OAuthToken token);
         OAuthToken? GetToken(string key);
         bool IsTokenValid(string key);
-        Task<string> GetOrAddToken(string key, Func<Task<OAuthToken>> generateNewToken);
+        Task<string> GetOrAddToken(string key, Func<CancellationToken, Task<OAuthToken>> generateNewToken, CancellationToken cancellationToken = default);
     }
 
 }
