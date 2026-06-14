@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.Caching;
+using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -76,7 +77,7 @@ namespace Test
 
             MemoryCache _cache = MemoryCache.Default;
 
-            var tokenInMemory = (OAuthToken)_cache.Get($"{ClientId}:{ClientSecret}");
+            var tokenInMemory = (OAuthToken)_cache.Get(ComputeTokenKey(ClientId, ClientSecret));
 
             Assert.Equal(accessToken1, tokenInMemory.AccessToken);
             Assert.Equal(accessToken2, tokenInMemory.AccessToken);
@@ -96,7 +97,7 @@ namespace Test
             var accessToken1 = await auth1.GetAccessTokenAsync();
 
             MemoryCache _cache = MemoryCache.Default;
-            var tokenInMemory = (OAuthToken)_cache.Get($"{ClientId}:{ClientSecret}");
+            var tokenInMemory = (OAuthToken)_cache.Get(ComputeTokenKey(ClientId, ClientSecret));
 
             var client2 = (BoletoClient)new BoletoClientBuilder()
                 .SetBeneficiary("123456")
@@ -110,6 +111,14 @@ namespace Test
 
             Assert.Equal(accessToken1, tokenInMemory.AccessToken);
             Assert.Equal(accessToken2, tokenInMemory.AccessToken);
+        }
+
+        // Replica o cálculo de chave de cache usado por Authenticator.ComputeTokenKey.
+        private static string ComputeTokenKey(string clientId, string clientSecret)
+        {
+            using var sha256 = SHA256.Create();
+            var hash = sha256.ComputeHash(Encoding.UTF8.GetBytes($"{clientId}:{clientSecret}"));
+            return BitConverter.ToString(hash).Replace("-", "").ToLowerInvariant();
         }
     }
 }
