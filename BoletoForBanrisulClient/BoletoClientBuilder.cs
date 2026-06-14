@@ -144,8 +144,13 @@ namespace BoletoForBanrisul.Client
 
             _authenticator = new Authenticator(authSettings, _tokenStorage, httpClient);
 
+            // O BoletoClient só assume a responsabilidade por descartar o HttpClient quando ele foi
+            // criado internamente (sem SetHttpClient); um HttpClient customizado continua sob
+            // responsabilidade do chamador.
+            var disposeHttpClient = _customHttpClient == null;
+
             // Cria e retorna o BoletoClient com as configurações aplicadas.
-            return new BoletoClient(_clientSettings, _authenticator, httpClient);
+            return new BoletoClient(_clientSettings, _authenticator, httpClient, disposeHttpClient);
         }
 
         private AuthenticatorSettings LoadAuthenticatorSettings(ClientSettings clientSettings)

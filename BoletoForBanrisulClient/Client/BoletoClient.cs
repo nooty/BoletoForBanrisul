@@ -19,14 +19,39 @@ namespace BoletoForBanrisul.Client
         private readonly HttpClient _httpClient;
         private readonly IAuthenticator _authenticator;
         private readonly ClientSettings _settings;
+        private readonly bool _disposeHttpClient;
+        private bool _disposed;
 
         public IAuthenticator Authenticator => _authenticator;
 
-        public BoletoClient(ClientSettings config, IAuthenticator authenticator, HttpClient httpClient)
+        /// <param name="config">Configurações do client.</param>
+        /// <param name="authenticator">Autenticador utilizado para obter o token de acesso.</param>
+        /// <param name="httpClient">HttpClient utilizado para as requisições.</param>
+        /// <param name="disposeHttpClient">
+        /// Indica se este client é o proprietário do <paramref name="httpClient"/> e deve descartá-lo
+        /// em <see cref="Dispose"/>. Use <c>false</c> (padrão) quando o HttpClient for gerenciado pelo chamador.
+        /// </param>
+        public BoletoClient(ClientSettings config, IAuthenticator authenticator, HttpClient httpClient, bool disposeHttpClient = false)
         {
             _httpClient = httpClient;
             _authenticator = authenticator;
             _settings = config;
+            _disposeHttpClient = disposeHttpClient;
+        }
+
+        /// <summary>
+        /// Libera os recursos utilizados pelo client. Se este client for o proprietário do HttpClient
+        /// (criado internamente pelo <see cref="BoletoClientBuilder"/>), o HttpClient também é descartado.
+        /// </summary>
+        public void Dispose()
+        {
+            if (_disposed)
+                return;
+
+            if (_disposeHttpClient)
+                _httpClient.Dispose();
+
+            _disposed = true;
         }
 
         public async Task<CreateBoletoResponse> CreateBoletoAsync(Boleto boleto, CancellationToken cancellationToken = default)
