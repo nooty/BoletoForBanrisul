@@ -19,7 +19,7 @@ namespace BoletoForBanrisul.Client.Auth
             {
                 var token = GetToken(key);
 
-                if (token == null || !IsTokenValid(key))
+                if (token == null || !IsTokenValid(token))
                 {
                     token = await generateNewToken(cancellationToken);
                     StoreToken(key, token);
@@ -37,7 +37,7 @@ namespace BoletoForBanrisul.Client.Auth
         {
             var cachePolicy = new CacheItemPolicy
             {
-                AbsoluteExpiration = DateTimeOffset.UtcNow.AddSeconds(token.ExpiresIn)
+                AbsoluteExpiration = token.ExpirationTime
             };
 
             _cache.Set(key, token, cachePolicy);
@@ -46,10 +46,17 @@ namespace BoletoForBanrisul.Client.Auth
         public virtual bool IsTokenValid(string key)
         {
             var token = GetToken(key);
-            if (token == null) return false;
+            return token != null && IsTokenValid(token);
+        }
 
-            // Verifica a validade do token com uma margem de segurança.
-            return token.ExpirationTime > DateTimeOffset.UtcNow.Add(SafetyMargin);
+        // Verifica a validade do token com uma margem de segurança, limitada à metade da
+        // vida útil do token para que tokens de curta duração não sejam sempre renovados.
+        private static bool IsTokenValid(OAuthToken token)
+        {
+            var lifetime = TimeSpan.FromSeconds(token.ExpiresIn);
+            var margin = TimeSpan.FromTicks(Math.Min(SafetyMargin.Ticks, lifetime.Ticks / 2));
+
+            return token.ExpirationTime > DateTimeOffset.UtcNow.Add(margin);
         }
 
         public virtual OAuthToken? GetToken(string key)
