@@ -18,7 +18,7 @@ namespace Test
         [Fact]
         public async Task Should_Handle_Concurrent_Token_Access_Properly_With_Multiple_Authenticators()
         {
-            var tokenStorageSpy = new Mock<InMemoryTokenStorage>() { CallBase = true };
+            var tokenStorageSpy = new Mock<SharedInMemoryTokenStorage>() { CallBase = true };
 
             var settings = CreateAuthenticatorSettings();
 

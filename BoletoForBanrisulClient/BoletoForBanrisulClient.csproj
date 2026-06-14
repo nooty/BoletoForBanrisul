@@ -59,7 +59,6 @@ For local export of boletos in PDF format, use the complementary component Bolet
     <PackageReference Include="Polly.Contrib.WaitAndRetry" Version="1.1.1" />
     <PackageReference Include="Polly.Extensions.Http" Version="3.0.0" />
     <PackageReference Include="StandardSocketsHttpHandler" Version="2.2.0.8" />
-    <PackageReference Include="System.Runtime.Caching" Version="8.0.1" />
     <PackageReference Include="System.Text.Json" Version="8.0.5" />
   </ItemGroup>
 

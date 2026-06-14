@@ -3,7 +3,6 @@ using BoletoForBanrisul.Client.Auth;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Runtime.Caching;
 using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
@@ -75,11 +74,11 @@ namespace Test
             var accessToken1 = await auth.GetAccessTokenAsync();
             var accessToken2 = await auth.GetAccessTokenAsync();
 
-            MemoryCache _cache = MemoryCache.Default;
+            // O cache de tokens é compartilhado por todas as instâncias de SharedInMemoryTokenStorage no processo.
+            var tokenInMemory = new SharedInMemoryTokenStorage().GetToken(ComputeTokenKey(ClientId, ClientSecret));
 
-            var tokenInMemory = (OAuthToken)_cache.Get(ComputeTokenKey(ClientId, ClientSecret));
-
-            Assert.Equal(accessToken1, tokenInMemory.AccessToken);
+            Assert.NotNull(tokenInMemory);
+            Assert.Equal(accessToken1, tokenInMemory!.AccessToken);
             Assert.Equal(accessToken2, tokenInMemory.AccessToken);
         }
 
@@ -96,8 +95,8 @@ namespace Test
 
             var accessToken1 = await auth1.GetAccessTokenAsync();
 
-            MemoryCache _cache = MemoryCache.Default;
-            var tokenInMemory = (OAuthToken)_cache.Get(ComputeTokenKey(ClientId, ClientSecret));
+            // O cache de tokens é compartilhado por todas as instâncias de SharedInMemoryTokenStorage no processo.
+            var tokenInMemory = new SharedInMemoryTokenStorage().GetToken(ComputeTokenKey(ClientId, ClientSecret));
 
             var client2 = (BoletoClient)new BoletoClientBuilder()
                 .SetBeneficiary("123456")
@@ -109,7 +108,8 @@ namespace Test
 
             var accessToken2 = await auth2.GetAccessTokenAsync();
 
-            Assert.Equal(accessToken1, tokenInMemory.AccessToken);
+            Assert.NotNull(tokenInMemory);
+            Assert.Equal(accessToken1, tokenInMemory!.AccessToken);
             Assert.Equal(accessToken2, tokenInMemory.AccessToken);
         }
 

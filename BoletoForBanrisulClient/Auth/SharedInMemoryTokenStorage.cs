@@ -1,19 +1,21 @@
-﻿using System;
-using System.Runtime.Caching;
+﻿using System.Collections.Concurrent;
 
 namespace BoletoForBanrisul.Client.Auth
 {
-    public class InMemoryTokenStorage : ITokenStorage
+    public class SharedInMemoryTokenStorage : ITokenStorage
     {
-        private static readonly SemaphoreSlim _semaphore = new SemaphoreSlim(1, 1);
-        private static readonly MemoryCache _cache = MemoryCache.Default;
+        // Cache e lock compartilhados entre todas as instâncias do processo: tokens são
+        // reaproveitados entre clients distintos com as mesmas credenciais, evitando uma
+        // nova autenticação a cada requisição.
+        private static readonly SemaphoreSlim _sharedSemaphore = new SemaphoreSlim(1, 1);
+        private static readonly ConcurrentDictionary<string, OAuthToken> _sharedCache = new ConcurrentDictionary<string, OAuthToken>();
 
         // Define a margem de segurança para expiração (5 minutos).
         private static readonly TimeSpan SafetyMargin = TimeSpan.FromMinutes(5);
 
         public virtual async Task<string> GetOrAddToken(string key, Func<CancellationToken, Task<OAuthToken>> generateNewToken, CancellationToken cancellationToken = default)
         {
-            await _semaphore.WaitAsync(cancellationToken);
+            await _sharedSemaphore.WaitAsync(cancellationToken);
 
             try
             {
@@ -29,18 +31,13 @@ namespace BoletoForBanrisul.Client.Auth
             }
             finally
             {
-                _semaphore.Release();
+                _sharedSemaphore.Release();
             }
         }
 
         public virtual void StoreToken(string key, OAuthToken token)
         {
-            var cachePolicy = new CacheItemPolicy
-            {
-                AbsoluteExpiration = token.ExpirationTime
-            };
-
-            _cache.Set(key, token, cachePolicy);
+            _sharedCache[key] = token;
         }
 
         public virtual bool IsTokenValid(string key)
@@ -61,7 +58,7 @@ namespace BoletoForBanrisul.Client.Auth
 
         public virtual OAuthToken? GetToken(string key)
         {
-            return _cache.Get(key) as OAuthToken;
+            return _sharedCache.TryGetValue(key, out var token) ? token : null;
         }
     }
 }

@@ -140,7 +140,7 @@ namespace BoletoForBanrisul.Client
 
             var httpClient = _customHttpClient ?? GetDefaultHttpClient();
 
-            _tokenStorage ??= new InMemoryTokenStorage();
+            _tokenStorage ??= new SharedInMemoryTokenStorage();
 
             _authenticator = new Authenticator(authSettings, _tokenStorage, httpClient);
 
