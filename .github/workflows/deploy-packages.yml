@@ -1,0 +1,244 @@
+name: Deploy packages
+
+on:
+  workflow_dispatch:
+    inputs:
+      package:
+        description: Package to publish
+        required: true
+        default: client
+        type: choice
+        options:
+          - core
+          - client
+          - report
+      version:
+        description: Package version, for example v1.0.0-rc1
+        required: true
+        type: string
+      registry:
+        description: Target registry. Use default to read PACKAGE_REGISTRY from repository variables or secrets.
+        required: true
+        default: default
+        type: choice
+        options:
+          - default
+          - github
+          - nuget
+  push:
+    tags:
+      - "client-v*"
+      - "report-v*"
+      - "core-v*"
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_ROLL_FORWARD: Major
+
+jobs:
+  deploy:
+    name: Pack and publish
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Resolve package settings
+        id: settings
+        shell: bash
+        env:
+          INPUT_PACKAGE: ${{ github.event.inputs.package }}
+          INPUT_VERSION: ${{ github.event.inputs.version }}
+          INPUT_REGISTRY: ${{ github.event.inputs.registry }}
+          PACKAGE_REGISTRY_VARIABLE: ${{ vars.PACKAGE_REGISTRY }}
+          PACKAGE_REGISTRY_SECRET: ${{ secrets.PACKAGE_REGISTRY }}
+        run: |
+          set -euo pipefail
+
+          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            tag="${GITHUB_REF_NAME}"
+
+            case "${tag}" in
+              client-v*)
+                package="client"
+                version="${tag#client-}"
+                ;;
+              report-v*)
+                package="report"
+                version="${tag#report-}"
+                ;;
+              core-v*)
+                package="core"
+                version="${tag#core-}"
+                ;;
+              *)
+                echo "::error::Unsupported deploy tag '${tag}'. Use client-v*, report-v* or core-v*."
+                exit 1
+                ;;
+            esac
+          else
+            package="${INPUT_PACKAGE:-client}"
+            version="${INPUT_VERSION:-}"
+          fi
+
+          if [[ -z "${version}" ]]; then
+            echo "::error::A package version is required when running this workflow manually."
+            exit 1
+          fi
+
+          if [[ ! "${version}" =~ ^v[0-9]+(\.[0-9]+){1,2}([-.][0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error::Version must start with v, for example v1.0.0 or v1.0.0-rc1."
+            exit 1
+          fi
+
+          package_version="${version#v}"
+
+          package="$(echo "${package}" | tr '[:upper:]' '[:lower:]')"
+          case "${package}" in
+            core|client|report)
+              ;;
+            *)
+              echo "::error::Unsupported package '${package}'. Use core, client or report."
+              exit 1
+              ;;
+          esac
+
+          registry="${INPUT_REGISTRY:-default}"
+          if [[ "${registry}" == "default" || -z "${registry}" ]]; then
+            registry="${PACKAGE_REGISTRY_VARIABLE:-${PACKAGE_REGISTRY_SECRET:-github}}"
+          fi
+
+          registry="$(echo "${registry}" | tr '[:upper:]' '[:lower:]')"
+          case "${registry}" in
+            github|nuget)
+              ;;
+            *)
+              echo "::error::Unsupported registry '${registry}'. Use github or nuget."
+              exit 1
+              ;;
+          esac
+
+          case "${package}" in
+            core)
+              project_path="BoletoForBanrisulCore/BoletoForBanrisulCore.csproj"
+              ;;
+            client)
+              project_path="BoletoForBanrisulClient/BoletoForBanrisulClient.csproj"
+              ;;
+            report)
+              project_path="BoletoForBanrisulReport/BoletoForBanrisulReport.csproj"
+              ;;
+          esac
+
+          {
+            echo "package=${package}"
+            echo "version=${version}"
+            echo "package_version=${package_version}"
+            echo "registry=${registry}"
+            echo "project_path=${project_path}"
+          } >> "${GITHUB_OUTPUT}"
+
+          echo "Package: ${package}"
+          echo "Version: ${version}"
+          echo "Package version: ${package_version}"
+          echo "Registry: ${registry}"
+          echo "Project: ${project_path}"
+
+      - name: Restore
+        run: dotnet restore BoletoForBanrisul.sln
+
+      - name: Build
+        run: >
+          dotnet build BoletoForBanrisul.sln
+          --configuration Release
+          --no-restore
+          /p:Version=${{ steps.settings.outputs.package_version }}
+          /p:PackageVersion=${{ steps.settings.outputs.package_version }}
+
+      - name: Test
+        run: >
+          dotnet test Test/Test.csproj
+          --configuration Release
+          --no-build
+          --filter "Category=Unit"
+
+      - name: Pack
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          mkdir -p artifacts
+
+          dotnet pack "${{ steps.settings.outputs.project_path }}" \
+            --configuration Release \
+            --no-build \
+            --output artifacts \
+            /p:Version=${{ steps.settings.outputs.package_version }} \
+            /p:PackageVersion=${{ steps.settings.outputs.package_version }}
+
+      - name: Publish to GitHub Packages
+        if: ${{ steps.settings.outputs.registry == 'github' }}
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          dotnet nuget add source "https://nuget.pkg.github.com/${GITHUB_REPOSITORY_OWNER}/index.json" \
+            --name github \
+            --username "${GITHUB_ACTOR}" \
+            --password "${GITHUB_TOKEN}" \
+            --store-password-in-clear-text
+
+          shopt -s nullglob
+          packages=(artifacts/*.nupkg)
+
+          if (( ${#packages[@]} == 0 )); then
+            echo "::error::No packages were generated."
+            exit 1
+          fi
+
+          for package in "${packages[@]}"; do
+            dotnet nuget push "${package}" \
+              --source github \
+              --api-key "${GITHUB_TOKEN}" \
+              --skip-duplicate
+          done
+
+      - name: Publish to NuGet
+        if: ${{ steps.settings.outputs.registry == 'nuget' }}
+        shell: bash
+        env:
+          NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
+        run: |
+          set -euo pipefail
+
+          if [[ -z "${NUGET_API_KEY}" ]]; then
+            echo "::error::NUGET_API_KEY secret is required when PACKAGE_REGISTRY is set to nuget."
+            exit 1
+          fi
+
+          shopt -s nullglob
+          packages=(artifacts/*.nupkg)
+
+          if (( ${#packages[@]} == 0 )); then
+            echo "::error::No packages were generated."
+            exit 1
+          fi
+
+          for package in "${packages[@]}"; do
+            dotnet nuget push "${package}" \
+              --source "https://api.nuget.org/v3/index.json" \
+              --api-key "${NUGET_API_KEY}" \
+              --skip-duplicate
+          done
