@@ -71,6 +71,33 @@ namespace Test
         }
 
         [Theory]
+        [InlineData("21474836.48", "2147483648")] // Maior que int.MaxValue em centavos.
+        [InlineData("99999999.99", "9999999999")] // Valor máximo do campo de 10 dígitos.
+        [InlineData("150.505", "0000015051")]     // Meio centavo deve ser arredondado, não truncado.
+        [InlineData("150.504", "0000015050")]
+        public void Should_Encode_High_And_Fractional_ValorNominal_In_CodigoDeBarras(string valorNominal, string expectedNominalField)
+        {
+            // Arrange
+            var boleto = new Boleto
+            {
+                Titulo = new Titulo
+                {
+                    DataVencimento = new DateTime(2021, 05, 05),
+                    ValorNominal = decimal.Parse(valorNominal, System.Globalization.CultureInfo.InvariantCulture),
+                    Beneficiario = new Beneficiario { Codigo = "0010000001088" },
+                    NossoNumero = "0006445268"
+                }
+            };
+
+            // Act
+            string codigoBarras = BoletoHelper.GetBarcode(boleto);
+
+            // Assert: posições 10 a 19 do código de barras contêm o valor nominal.
+            Assert.Equal(44, codigoBarras.Length);
+            Assert.Equal(expectedNominalField, codigoBarras.Substring(9, 10));
+        }
+
+        [Theory]
         [InlineData("04192100180000001000906445240408886110000015050", "04192.10018  00000.010009  06445.240408  8  86110000015050")]
         [InlineData("04192100180000001000900038840716786110000015050", "04192.10018  00000.010009  00038.840716  7  86110000015050")]
         [InlineData("04192100180000001059545952740228192140000099999", "04192.10018  00000.010595  45952.740228  1  92140000099999")]

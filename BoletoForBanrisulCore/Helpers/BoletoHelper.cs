@@ -93,7 +93,7 @@ namespace BoletoForBanrisul.Core.Helpers
 
             // 10 a 19: Valor Nominal (sem vírgula, com 2 casas decimais).
             string nominalValue = boleto.Titulo.ValorNominal > 0 ?
-                ((int)(boleto.Titulo.ValorNominal * 100)).ToString().PadLeft(10, '0') : "0000000000";
+                ((long)Math.Round(boleto.Titulo.ValorNominal * 100m, MidpointRounding.AwayFromZero)).ToString().PadLeft(10, '0') : "0000000000";
 
             // 20 a 44: Campo Livre.
             var beneficiary = OnlyNumbers(boleto.Titulo.Beneficiario?.Codigo ?? "").PadLeft(13, '0').Substring(0, 13);
