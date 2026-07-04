@@ -9,7 +9,7 @@
     <RootNamespace>BoletoForBanrisul.Core</RootNamespace>
     <PackageId>BoletoForBanrisul.Core</PackageId>
     <Title>BoletoForBanrisul.Core</Title>
-    <Authors>Nooty</Authors>
+    <Authors>Wendell Gasparoni</Authors>
     <Product>BoletoForBanrisul.Core</Product>
     <Description>Shared boleto models, helpers and JSON converters used by BoletoForBanrisul.Client and BoletoForBanrisul.Report.</Description>
     <PackageProjectUrl>https://github.com/nooty/BoletoForBanrisul</PackageProjectUrl>

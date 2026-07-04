@@ -8,7 +8,7 @@
 	<Nullable>enable</Nullable>
 	<RootNamespace>$(MSBuildProjectName.Replace(" ", "_").Replace("Report", ".Report"))</RootNamespace>
 	<Title>$(AssemblyName.Replace("Report", ".Report"))</Title>
-	<Authors>Nooty</Authors>
+	<Authors>Wendell Gasparoni</Authors>
 	<Product>$(AssemblyName.Replace("Report", ".Report"))</Product>
 	<PackageProjectUrl>https://github.com/nooty/BoletoForBanrisul</PackageProjectUrl>
 	<RepositoryUrl>https://github.com/nooty/BoletoForBanrisul</RepositoryUrl>

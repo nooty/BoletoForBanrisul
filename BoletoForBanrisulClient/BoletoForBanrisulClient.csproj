@@ -9,7 +9,7 @@
     <RootNamespace>$(MSBuildProjectName.Replace(" ", "_").Replace("Client", ".Client"))</RootNamespace>
     <PackageId>$(AssemblyName.Replace("Client", ".Client"))</PackageId>
     <Title>$(AssemblyName.Replace("Client", ".Client"))</Title>
-    <Authors>Nooty</Authors>
+    <Authors>Wendell Gasparoni</Authors>
     <Product>$(AssemblyName.Replace("Client", ".Client"))</Product>
     <Description>The BoletoForBanrisul.Client component is a .NET client that provides full integration with Banrisul's billing API.
 
