@@ -42,10 +42,9 @@ namespace BoletoForBanrisul.Report.Utils
 			using (var barcodeImage = barcodeWriter.Write(code))
 			{
 				using (var image = SKImage.FromBitmap(barcodeImage))
+				using (var data = image.Encode(SKEncodedImageFormat.Png, 100))
 				{
-					var data = image.Encode(SKEncodedImageFormat.Png, 100).ToArray();
-
-					return $"data:image/png;base64,{Convert.ToBase64String(data)}";
+					return $"data:image/png;base64,{Convert.ToBase64String(data.ToArray())}";
 				}
 			}
 		}
@@ -75,10 +74,9 @@ namespace BoletoForBanrisul.Report.Utils
             using (var qrCodeImage = qrCodeWriter.Write(code))
             {
                 using (var image = SKImage.FromBitmap(qrCodeImage))
+                using (var data = image.Encode(SKEncodedImageFormat.Png, 100))
                 {
-                    var data = image.Encode(SKEncodedImageFormat.Png, 100).ToArray();
-
-                    return $"data:image/png;base64,{Convert.ToBase64String(data)}";
+                    return $"data:image/png;base64,{Convert.ToBase64String(data.ToArray())}";
                 }
             }
         }
