@@ -16,7 +16,6 @@ namespace BoletoForBanrisul.Client
     public class BoletoClientBuilder
     {
         private readonly AppSettingsLoader _settingsLoader;
-        private HttpClient? _httpClient;
         private HttpClient? _customHttpClient;
         private IAuthenticator? _authenticator;
         private ClientSettings? _clientSettings;
@@ -199,14 +198,12 @@ namespace BoletoForBanrisul.Client
             };
         }
 
+        // Cria sempre uma nova instância: cada BoletoClient construído sem SetHttpClient é
+        // proprietário do seu HttpClient e o descarta no Dispose; compartilhar uma instância
+        // entre múltiplas chamadas de Build() causaria dispose duplo.
         private HttpClient GetDefaultHttpClient()
         {
-            if (_httpClient != null)
-                return _httpClient;
-
-            _httpClient = new ResilientHttpClientBuilder().Build();
-
-            return _httpClient;
+            return new ResilientHttpClientBuilder().Build();
         }
 
         private string CombineUrl(string baseUrl, string resource)
