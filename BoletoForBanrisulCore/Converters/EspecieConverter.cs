@@ -11,7 +11,12 @@ namespace BoletoForBanrisul.Core.Converters
         public override Especie Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
             string value = reader.GetString() ?? "";
-            if (Enum.TryParse<Especie>(value, out var result))
+
+            // Enum.TryParse alone accepts any numeric string and returns true even when the resulting value
+            // is not one of the enum's defined members (e.g. "77" parses to the undefined (Especie)77), so a
+            // bad wire value would otherwise deserialize silently instead of failing loudly like every other
+            // converter in this namespace. Enum.IsDefined closes that gap.
+            if (Enum.TryParse<Especie>(value, out var result) && Enum.IsDefined(typeof(Especie), result))
             {
                 return result;
             }
