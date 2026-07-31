@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Drawing;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -70,8 +69,17 @@ namespace BoletoForBanrisul.Core.Models.Types
 
     public enum CodigoProtesto
     {
+        /// <summary>Protest after a number of calendar days past due.</summary>
         ProtestarDiasCorridos = 1,
-        NaoProtestar = 3
+
+        /// <summary>Do not protest.</summary>
+        NaoProtestar = 3,
+
+        /// <summary>Do not report the payer to credit bureaus ("negativação").</summary>
+        NaoNegativar = 7,
+
+        /// <summary>Report the payer to credit bureaus ("negativação") after a number of calendar days past due.</summary>
+        NegativarDiasCorridos = 8
     }
 
     public enum CodigoBaixa

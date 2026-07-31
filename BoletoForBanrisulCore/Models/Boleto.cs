@@ -53,6 +53,9 @@ namespace BoletoForBanrisul.Core.Models
 
         public Hibrido? Hibrido { get; set; }
 
+        /// <summary>Invoices (Notas Fiscais) linked to the bank slip. At most two per bank slip.</summary>
+        public List<NotaFiscal>? NotasFiscais { get; set; }
+
         /// <summary>
         /// Retornado pelo banco.
         /// </summary>
@@ -285,6 +288,13 @@ namespace BoletoForBanrisul.Core.Models
         public string Texto { get; set; } = "";
     }
 
+    /// <summary>An invoice (Nota Fiscal) linked to the bank slip. A bank slip carries at most two.</summary>
+    public class NotaFiscal
+    {
+        /// <summary>DANFE access key: 43 numeric characters plus a check digit, 44 in total.</summary>
+        public string Danfe { get; set; } = "";
+    }
+
     public class Rateio
     {
         public CodigoRateio Codigo { get; set; }
@@ -297,6 +307,11 @@ namespace BoletoForBanrisul.Core.Models
     public class BeneficiarioRateio
     {
         public string Codigo { get; set; } = "";
+
+        /// <summary>
+        /// CPF/CNPJ of the sharing beneficiary. Sent on the request and also echoed back by the bank.
+        /// </summary>
+        public string? CpfCnpj { get; set; }
 
         [JsonConverter(typeof(DecimalF2Converter))]
         public decimal? Valor { get; set; }
