@@ -90,12 +90,43 @@ services.AddBoletoForBanrisulReportBuilder((builder, provider) =>
 });
 ```
 
-## Testes
+## Validação local
 
-Os testes unitários podem ser executados sem credenciais:
+Antes de qualquer requisição HTTP, `CreateBoletoAsync` valida o `Boleto` localmente. Um boleto
+inválido lança `ModelValidationException` e **nenhuma requisição é enviada**.
 
-```bash
-dotnet test Test/Test.csproj --filter "Category=Unit"
+`ModelValidationException` vive em `BoletoForBanrisul.Core.Validation`, carrega
+`IReadOnlyList<ValidationResult> Errors` com o caminho pontuado de cada campo inválido (por exemplo,
+`Titulo.Pagador.Cep`), e **não herda de `ApiException`** — quem só tem `catch (ApiException)` não a
+captura. A distinção é proposital: falha de validação local (o boleto está malformado) é uma coisa
+diferente de falha do banco (a API rejeitou a requisição).
+
+Para validar sem lançar exceção — por exemplo, para exibir os erros num formulário antes de enviar:
+
+```csharp
+using BoletoForBanrisul.Core.Validation;
+
+if (!RecursiveValidator.TryValidate(boleto, out var errors))
+{
+    foreach (var error in errors)
+        Console.WriteLine($"{string.Join(", ", error.MemberNames)}: {error.ErrorMessage}");
+}
 ```
 
-Os testes de integração com a API real do Banrisul ficam desabilitados por padrão. Veja `Test/README.md` para configurar e executar esses cenários manualmente.
+**Mudança de comportamento**: campos de texto que excedem o tamanho máximo agora são **rejeitados**
+pela validação, em vez de truncados silenciosamente na serialização como acontecia antes.
+
+## Testes
+
+Os testes estão organizados em quatro projetos sob `Tests/`. Os três primeiros são determinísticos e
+não exigem credenciais:
+
+```bash
+dotnet test Tests/BoletoForBanrisul.Core.Tests
+dotnet test Tests/BoletoForBanrisul.Client.Tests
+dotnet test Tests/BoletoForBanrisul.Report.Tests
+```
+
+Os testes de integração com a API real do Banrisul (`Tests/BoletoForBanrisul.IntegrationTests`) ficam
+desabilitados por padrão. Veja `Tests/BoletoForBanrisul.IntegrationTests/README.md` para configurar e
+executar esses cenários manualmente.
