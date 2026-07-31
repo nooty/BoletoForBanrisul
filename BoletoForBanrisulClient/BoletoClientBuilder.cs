@@ -15,7 +15,7 @@ namespace BoletoForBanrisul.Client
     /// </summary>
     public class BoletoClientBuilder
     {
-        private readonly AppSettingsLoader _settingsLoader;
+        private readonly BanrisulEndpointsLoader _settingsLoader;
         private HttpClient? _customHttpClient;
         private IAuthenticator? _authenticator;
         private ClientSettings? _clientSettings;
@@ -33,7 +33,7 @@ namespace BoletoForBanrisul.Client
 
         public BoletoClientBuilder()
         {
-            _settingsLoader = new AppSettingsLoader();
+            _settingsLoader = new BanrisulEndpointsLoader();
         }
 
         /// <summary>
@@ -133,7 +133,7 @@ namespace BoletoForBanrisul.Client
         /// <returns></returns>
         public IBoletoClient Build()
         {
-            _clientSettings = LoadClientSettings(_useSandbox ? ApiEnvironmentType.Sandbox : ApiEnvironmentType.Production);
+            _clientSettings = LoadClientSettings(_useSandbox ? ApiHost.Sandbox : ApiHost.Production);
 
             var authSettings = LoadAuthenticatorSettings(_clientSettings);
 
@@ -172,9 +172,9 @@ namespace BoletoForBanrisul.Client
             return authSettings;
         }
 
-        private ClientSettings LoadClientSettings(ApiEnvironmentType environmentType)
+        private ClientSettings LoadClientSettings(ApiHost host)
         {
-            var environmentSettings = _settingsLoader.LoadSettings(environmentType);
+            var endpoints = _settingsLoader.LoadSettings(host);
 
             if (string.IsNullOrEmpty(_beneficiaryCode))
                 throw new InvalidOperationException("Erro no builder: O 'Código do Beneficiário' não foi informado. Este valor é obrigatório para a configuração do client. Verifique as configurações no builder e informe o código do beneficiário.");
@@ -184,13 +184,13 @@ namespace BoletoForBanrisul.Client
 
             return new ClientSettings
             {
-                RegisterBoletoUrl = CombineUrl(environmentSettings.BaseUrl, environmentSettings.RegisterBoletoEndpoint),
-                GetBoletoUrl = CombineUrl(environmentSettings.BaseUrl, environmentSettings.GetBoletoEndpoint),
-                ChangeDueDateUrl = CombineUrl(environmentSettings.BaseUrl, environmentSettings.ChangeDueDateEndpoint),
-                GrantAbatementUrl = CombineUrl(environmentSettings.BaseUrl, environmentSettings.GrantAbatementEndpoint),
-                CancelBoletoUrl = CombineUrl(environmentSettings.BaseUrl, environmentSettings.CancelBoletoEndpoint),
-                IssueBoletoUrl = CombineUrl(environmentSettings.BaseUrl, environmentSettings.IssueBoletoEndpoint),
-                TokenUrl = CombineUrl(environmentSettings.BaseUrl, environmentSettings.TokenEndpoint),
+                RegisterBoletoUrl = CombineUrl(endpoints.BaseUrl, endpoints.RegisterBoletoEndpoint),
+                GetBoletoUrl = CombineUrl(endpoints.BaseUrl, endpoints.GetBoletoEndpoint),
+                ChangeDueDateUrl = CombineUrl(endpoints.BaseUrl, endpoints.ChangeDueDateEndpoint),
+                GrantAbatementUrl = CombineUrl(endpoints.BaseUrl, endpoints.GrantAbatementEndpoint),
+                CancelBoletoUrl = CombineUrl(endpoints.BaseUrl, endpoints.CancelBoletoEndpoint),
+                IssueBoletoUrl = CombineUrl(endpoints.BaseUrl, endpoints.IssueBoletoEndpoint),
+                TokenUrl = CombineUrl(endpoints.BaseUrl, endpoints.TokenEndpoint),
                 BeneficiaryCode = _beneficiaryCode,
                 EnableLogging = _enableLogging,
                 LogDirectory = _logDirectory ?? "",
