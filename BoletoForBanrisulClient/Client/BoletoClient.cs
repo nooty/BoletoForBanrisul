@@ -9,6 +9,7 @@ using System.Text.Json;
 using System.Threading.Tasks;
 using BoletoForBanrisul.Client.Models.Operations;
 using BoletoForBanrisul.Core.Converters;
+using BoletoForBanrisul.Core.Validation;
 using BoletoForBanrisul.Client.Exceptions.Api;
 using BoletoForBanrisul.Client.Models.Responses;
 
@@ -56,6 +57,8 @@ namespace BoletoForBanrisul.Client
 
         public async Task<CreateBoletoResponse> CreateBoletoAsync(Boleto boleto, CancellationToken cancellationToken = default)
         {
+            RecursiveValidator.ValidateAndThrow(boleto);
+
             var boletoJson = boleto.ToJson();
             var jsonContent = new StringContent(boletoJson, Encoding.UTF8, "application/json");
             var request = new HttpRequestMessage(HttpMethod.Post, _settings.RegisterBoletoUrl)

@@ -35,7 +35,7 @@ namespace Test
                     {
                         CpfCnpj = "1234567890123456",
                         Nome = "Nome muito longo do sacador que deve ser truncado",
-                        Endereco = "Endereco sacador muito longo que deve ser truncado para 45 caracteres",
+                        Endereco = "Endereco sacador muito longo que deve ser truncado para 40 caracteres",
                         Cep = "3234567890"
                     },
                     Mensagens = new List<Mensagem>
@@ -63,8 +63,8 @@ namespace Test
             Assert.Contains("\"uf\": \"Es\"", json);
 
             // Verifica Sacador.
-            Assert.Contains("\"nome\": \"Nome muito longo do sacador que deve ser trun\"", json);
-            Assert.Contains("\"endereco\": \"Endereco sacador muito longo que deve ser tru\"", json);
+            Assert.Contains("\"nome\": \"Nome muito longo do sacador que deve ser\"", json);
+            Assert.Contains("\"endereco\": \"Endereco sacador muito longo que deve se\"", json);
             Assert.Contains("\"cep\": \"32345678\"", json);
 
             // Verifica Mensagens.

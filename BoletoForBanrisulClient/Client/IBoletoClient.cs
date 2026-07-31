@@ -25,9 +25,13 @@ namespace BoletoForBanrisul.Client
         /// <summary>
         /// Registra um boleto no banco.
         /// </summary>
-        /// <param name="boleto">Objeto boleto a ser registrado.</param>
+        /// <param name="boleto">
+        /// Objeto boleto a ser registrado. Validado localmente por <see cref="BoletoForBanrisul.Core.Validation.RecursiveValidator"/>
+        /// antes de qualquer requisição HTTP ser enviada.
+        /// </param>
         /// <param name="cancellationToken">Token para cancelar a operação.</param>
         /// <returns>Boleto registrado.</returns>
+        /// <exception cref="BoletoForBanrisul.Core.Validation.ModelValidationException">The bank slip failed local validation; no HTTP request was made.</exception>
         /// <exception cref="InvalidRequestException"/>
         /// <exception cref="UnauthorizedException"/>
         /// <exception cref="TokenDeserializationException"/>
