@@ -1,12 +1,6 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using BoletoForBanrisul.Core.Helpers;
-using Xunit;
 
-namespace Test
+namespace BoletoForBanrisul.Core.Tests
 {
     [Trait("Category", "Unit")]
     public class OurNumberHelperTest

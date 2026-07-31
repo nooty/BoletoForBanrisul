@@ -1,5 +1,5 @@
 ﻿using System;
-namespace Test
+namespace BoletoForBanrisul.IntegrationTests
 {
     public abstract class AuthenticatedTestBase
     {

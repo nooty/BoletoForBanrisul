@@ -1,9 +1,7 @@
-using Xunit;
-using System;
 using BoletoForBanrisul.Core.Helpers;
 using BoletoForBanrisul.Core.Models;
 
-namespace Test
+namespace BoletoForBanrisul.Core.Tests
 {
     [Trait("Category", "Unit")]
     public class BarcodeAndDigitableLineTest

@@ -1,16 +1,10 @@
 using BoletoForBanrisul.Client.Auth;
+using BoletoForBanrisul.Client.Tests.TestSupport;
 using BoletoForBanrisul.Core.Converters;
-using Moq;
-using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Net;
-using System.Runtime;
-using System.Text;
 using System.Text.Json;
-using System.Threading.Tasks;
 
-namespace Test
+namespace BoletoForBanrisul.Client.Tests
 {
     [Trait("Category", "Unit")]
     public class AuthenticationConcurrencyTest
@@ -18,12 +12,12 @@ namespace Test
         [Fact]
         public async Task Should_Handle_Concurrent_Token_Access_Properly_With_Multiple_Authenticators()
         {
-            var tokenStorageSpy = new Mock<SharedInMemoryTokenStorage>() { CallBase = true };
+            var tokenStorage = new CountingTokenStorage();
 
             var settings = CreateAuthenticatorSettings();
 
             // Cria e executa múltiplas tasks.
-            var tasks = CreateAuthenticatorTasks(1000, tokenStorageSpy.Object, settings);
+            var tasks = CreateAuthenticatorTasks(1000, tokenStorage, settings);
 
             // Aguarda a execução de todas as tasks.
             var results = await Task.WhenAll(tasks);
@@ -32,7 +26,7 @@ namespace Test
             var firstResult = results.First();
             Assert.All(results, result => Assert.Equal(firstResult, result));
 
-            tokenStorageSpy.Verify(s => s.StoreToken(It.IsAny<string>(), It.IsAny<OAuthToken>()), Times.Once);
+            Assert.Equal(1, tokenStorage.StoreCount);
         }
 
         private AuthenticatorSettings CreateAuthenticatorSettings()
@@ -83,22 +77,6 @@ namespace Test
             });
 
             return new HttpClient(mockHttpMessageHandler);
-        }
-
-    }
-
-    public class MockHttpMessageHandler : HttpMessageHandler
-    {
-        private readonly Func<HttpResponseMessage> _responseGenerator;
-
-        public MockHttpMessageHandler(Func<HttpResponseMessage> responseGenerator)
-        {
-            _responseGenerator = responseGenerator;
-        }
-
-        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
-        {
-            return await Task.FromResult(_responseGenerator());
         }
     }
 }

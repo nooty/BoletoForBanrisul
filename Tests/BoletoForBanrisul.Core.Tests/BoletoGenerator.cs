@@ -1,13 +1,17 @@
 using BoletoForBanrisul.Core.Models;
 using BoletoForBanrisul.Core.Models.Types;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
-namespace Test
+namespace BoletoForBanrisul.Core.Tests
 {
+    /// <summary>
+    /// Builds sample <see cref="Boleto"/> instances for Core-level tests. A separate copy of
+    /// <c>BoletoForBanrisul.IntegrationTests.BoletoGenerator</c> - duplicated rather than shared because the
+    /// two have diverging needs: <see cref="JsonGenerationTest"/> here compares serialized output byte-for-byte
+    /// against a golden file, so this copy must stay exactly as it always has been; the IntegrationTests copy
+    /// had to change <see cref="GenerateBoleto2"/>'s <c>PagParcial.Autoriza</c> to satisfy validation rules
+    /// introduced after the golden files were captured. Keeping one shared fixture would have forced a choice
+    /// between the two.
+    /// </summary>
     public class BoletoGenerator
     {
         public static Boleto GenerateBoleto1()

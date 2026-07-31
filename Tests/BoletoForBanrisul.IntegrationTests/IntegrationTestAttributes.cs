@@ -1,6 +1,6 @@
 using System;
 
-namespace Test
+namespace BoletoForBanrisul.IntegrationTests
 {
     public sealed class IntegrationFactAttribute : FactAttribute
     {

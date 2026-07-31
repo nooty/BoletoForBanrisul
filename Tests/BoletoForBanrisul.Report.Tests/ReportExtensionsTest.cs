@@ -1,20 +1,11 @@
-using BoletoForBanrisul.Report.Utils;
-using BoletoForBanrisul.Report;
-using Microsoft.Extensions.DependencyInjection;
-using Moq;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using BoletoForBanrisul.Report.Extensions;
+using Microsoft.Extensions.DependencyInjection;
 
-namespace Test
+namespace BoletoForBanrisul.Report.Tests
 {
     [Trait("Category", "Unit")]
     public class ReportExtensionsTest
     {
-
         [Fact]
         public void Should_Register_BoletoReportBuilder_As_Transient()
         {

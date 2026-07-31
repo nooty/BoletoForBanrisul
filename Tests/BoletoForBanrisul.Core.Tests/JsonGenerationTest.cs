@@ -1,7 +1,6 @@
 using BoletoForBanrisul.Core.Models;
-using System.Text.Json;
 
-namespace Test
+namespace BoletoForBanrisul.Core.Tests
 {
     [Trait("Category", "Unit")]
     public class JsonGenerationTest

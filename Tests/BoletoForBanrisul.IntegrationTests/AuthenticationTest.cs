@@ -7,7 +7,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Test
+namespace BoletoForBanrisul.IntegrationTests
 {
     [Trait("Category", "Integration")]
     public class AuthenticationTest : AuthenticatedTestBase

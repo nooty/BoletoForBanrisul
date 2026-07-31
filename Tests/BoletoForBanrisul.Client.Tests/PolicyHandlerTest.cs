@@ -1,14 +1,11 @@
 using BoletoForBanrisul.Client.HttpClients;
+using BoletoForBanrisul.Client.Tests.TestSupport;
 using Polly;
 using Polly.Extensions.Http;
-using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Net;
 using System.Text;
-using System.Threading.Tasks;
 
-namespace Test
+namespace BoletoForBanrisul.Client.Tests
 {
     [Trait("Category", "Unit")]
     public class PolicyHandlerTest
@@ -79,21 +76,6 @@ namespace Test
 
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
             Assert.Equal(1, attempts);
-        }
-    }
-
-    public class RequestCapturingHandler : HttpMessageHandler
-    {
-        private readonly Func<HttpRequestMessage, Task<HttpResponseMessage>> _responseGenerator;
-
-        public RequestCapturingHandler(Func<HttpRequestMessage, Task<HttpResponseMessage>> responseGenerator)
-        {
-            _responseGenerator = responseGenerator;
-        }
-
-        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
-        {
-            return _responseGenerator(request);
         }
     }
 }

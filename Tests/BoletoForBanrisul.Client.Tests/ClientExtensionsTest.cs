@@ -1,10 +1,7 @@
-using BoletoForBanrisul.Client;
 using BoletoForBanrisul.Client.Extensions;
-using BoletoForBanrisul.Report.Extensions;
-using BoletoForBanrisul.Report;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace Test
+namespace BoletoForBanrisul.Client.Tests
 {
     [Trait("Category", "Unit")]
     public class ClientExtensionsTest

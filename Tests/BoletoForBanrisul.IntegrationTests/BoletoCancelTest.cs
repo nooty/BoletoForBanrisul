@@ -9,7 +9,7 @@ using BoletoForBanrisul.Client.Exceptions.Api;
 using BoletoForBanrisul.Client.Exceptions.Auth;
 using BoletoForBanrisul.Client.Models.Responses;
 
-namespace Test
+namespace BoletoForBanrisul.IntegrationTests
 {
     [Trait("Category", "Integration")]
     public class BoletoCancelTest : AuthenticatedTestBase

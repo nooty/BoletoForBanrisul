@@ -11,7 +11,7 @@ using System.Text;
 using System.Threading.Tasks;
 using Xunit.Sdk;
 
-namespace Test
+namespace BoletoForBanrisul.IntegrationTests
 {
     [Trait("Category", "Integration")]
     public class BoletoGetTest : AuthenticatedTestBase

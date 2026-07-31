@@ -1,17 +1,18 @@
 using BoletoForBanrisul.Client;
-using BoletoForBanrisul.Client.Exceptions.Api;
 using BoletoForBanrisul.Client.Exceptions.Auth;
-using BoletoForBanrisul.Core.Models;
 using BoletoForBanrisul.Client.Models.Responses;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using Xunit.Sdk;
 
-namespace Test
+namespace BoletoForBanrisul.IntegrationTests
 {
+    /// <summary>
+    /// A third test used to live here, <c>Should_Throw_InvalidRequestException_For_Boleto_With_Filling_Errors</c>:
+    /// it sent a malformed <see cref="Core.Models.Boleto"/> and asserted the bank answered with a 400. Local
+    /// validation (<see cref="Core.Validation.RecursiveValidator"/>, wired into
+    /// <c>BoletoClient.CreateBoletoAsync</c> as its first statement) now rejects that same malformed boleto
+    /// before any HTTP request is built, so the test became impossible by design - there is no request left
+    /// for the bank to reject. It was rewritten as a unit test against <c>RecursiveValidator</c> directly: see
+    /// <c>BoletoWithFillingErrorsTest</c> in <c>Core.Tests/Validation</c>.
+    /// </summary>
     [Trait("Category", "Integration")]
     public class BoletoCreateTest : AuthenticatedTestBase
     {
@@ -48,25 +49,6 @@ namespace Test
             {
                 var response = await client.CreateBoletoAsync(boleto);
             });
-        }
-
-        [IntegrationFact]
-        public async Task Should_Throw_InvalidRequestException_For_Boleto_With_Filling_Errors()
-        {
-            var client = new BoletoClientBuilder()
-                .SetBeneficiary("0010000001088")
-                .SetAuthentication(ClientId, ClientSecret)
-                .UseSandbox()
-                .Build();
-
-            var boleto = BoletoGenerator.GenerateBoletoWithFillingErrors();
-
-            var ex = await Assert.ThrowsAsync<InvalidRequestException>(async () =>
-            {
-                var response = await client.CreateBoletoAsync(boleto);
-            });
-
-            Assert.NotEmpty(ex.Ocurrences);
         }
     }
 }
