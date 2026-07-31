@@ -51,7 +51,7 @@ jobs:
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: 8.0.x
+          dotnet-version: 10.0.x
 
       - name: Resolve package settings
         id: settings
@@ -166,11 +166,12 @@ jobs:
           /p:PackageVersion=${{ steps.settings.outputs.package_version }}
 
       - name: Test
-        run: >
-          dotnet test Test/Test.csproj
-          --configuration Release
-          --no-build
-          --filter "Category=Unit"
+        run: |
+          set -euo pipefail
+
+          dotnet test Tests/BoletoForBanrisul.Core.Tests --configuration Release --no-build
+          dotnet test Tests/BoletoForBanrisul.Client.Tests --configuration Release --no-build
+          dotnet test Tests/BoletoForBanrisul.Report.Tests --configuration Release --no-build
 
       - name: Pack
         shell: bash
