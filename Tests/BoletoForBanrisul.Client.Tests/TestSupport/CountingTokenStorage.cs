@@ -55,5 +55,7 @@ namespace BoletoForBanrisul.Client.Tests.TestSupport
         public OAuthToken? GetToken(string key) => _cache.TryGetValue(key, out var token) ? token : null;
 
         public bool IsTokenValid(string key) => _cache.ContainsKey(key);
+
+        public void InvalidateToken(string key) => _cache.Remove(key);
     }
 }

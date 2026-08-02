@@ -16,7 +16,7 @@ namespace BoletoForBanrisul.Client.Extensions
         /// <param name="services">Coleção de serviços onde o BoletoClientBuilder será registrado.</param>
         /// <param name="configureBuilder">
         /// Ação opcional para configurar o BoletoClientBuilder. Recebe o <see cref="IServiceProvider"/>
-        /// do container, permitindo resolver outros serviços registrados (ex: HttpClient, loggers) para
+        /// do container, permitindo resolver outros serviços registrados (ex: ITokenStorage, loggers) para
         /// configurar o builder.
         /// </param>
         public static IServiceCollection AddBoletoForBanrisulClientBuilder(this IServiceCollection services, Action<BoletoClientBuilder, IServiceProvider>? configureBuilder = null)

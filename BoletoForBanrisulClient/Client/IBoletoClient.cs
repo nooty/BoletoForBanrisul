@@ -14,11 +14,10 @@ namespace BoletoForBanrisul.Client
     /// Cliente para a API de cobrança do Banrisul.
     /// </summary>
     /// <remarks>
-    /// Implementa <see cref="IDisposable"/> porque, quando criado via <see cref="BoletoClientBuilder"/> sem um
-    /// HttpClient customizado, o client passa a ser o proprietário do HttpClient interno. Chame
-    /// <see cref="IDisposable.Dispose"/> (ou utilize um bloco using) para liberar esse HttpClient quando o client
-    /// não for mais utilizado. Se um HttpClient customizado foi informado via SetHttpClient, o chamador continua
-    /// responsável por seu ciclo de vida e o Dispose não o afeta.
+    /// Implementa <see cref="IDisposable"/> porque <see cref="BoletoClientBuilder"/> sempre monta e é
+    /// proprietário dos dois HttpClient internos (o da API e o do autenticador). Chame
+    /// <see cref="IDisposable.Dispose"/> (ou utilize um bloco using) para liberá-los quando o client não for
+    /// mais utilizado.
     /// </remarks>
     public interface IBoletoClient : IDisposable
     {

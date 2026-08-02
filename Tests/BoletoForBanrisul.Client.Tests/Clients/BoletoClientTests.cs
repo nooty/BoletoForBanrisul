@@ -326,36 +326,29 @@ namespace BoletoForBanrisul.Client.Tests.Clients
         }
 
         // --- Dispose: ownership of the HttpClient. ---
+        // BoletoClientBuilder always builds two HttpClient instances (one for the API, wired with the
+        // AuthenticationHandler, and one dedicated to the authenticator's own token exchange) and nothing
+        // else ever references either one, so BoletoClient unconditionally owns and disposes both.
 
         [Fact]
         public async Task Dispose_DisposesTheHttpClient_WhenTheClientOwnsIt()
         {
             var httpClient = new HttpClient(new StubHttpMessageHandler(_ => new HttpResponseMessage(HttpStatusCode.OK)));
-            var client = new BoletoClient(new ClientSettings(), new NeverCalledAuthenticator(), httpClient, disposeHttpClient: true);
+            var authenticatorHttpClient = new HttpClient(new StubHttpMessageHandler(_ => new HttpResponseMessage(HttpStatusCode.OK)));
+            var client = new BoletoClient(new ClientSettings(), new NeverCalledAuthenticator(), httpClient, authenticatorHttpClient);
 
             client.Dispose();
 
             await Assert.ThrowsAsync<ObjectDisposedException>(() => httpClient.GetAsync("https://example.invalid/"));
-        }
-
-        [Fact]
-        public async Task Dispose_LeavesTheHttpClientUsable_WhenTheClientDoesNotOwnIt()
-        {
-            var stub = new StubHttpMessageHandler(_ => new HttpResponseMessage(HttpStatusCode.OK));
-            var httpClient = new HttpClient(stub);
-            var client = new BoletoClient(new ClientSettings(), new NeverCalledAuthenticator(), httpClient, disposeHttpClient: false);
-
-            client.Dispose();
-
-            var response = await httpClient.GetAsync("https://example.invalid/");
-            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            await Assert.ThrowsAsync<ObjectDisposedException>(() => authenticatorHttpClient.GetAsync("https://example.invalid/"));
         }
 
         [Fact]
         public void Dispose_CalledTwice_IsSafe()
         {
             var httpClient = new HttpClient(new StubHttpMessageHandler(_ => new HttpResponseMessage(HttpStatusCode.OK)));
-            var client = new BoletoClient(new ClientSettings(), new NeverCalledAuthenticator(), httpClient, disposeHttpClient: true);
+            var authenticatorHttpClient = new HttpClient(new StubHttpMessageHandler(_ => new HttpResponseMessage(HttpStatusCode.OK)));
+            var client = new BoletoClient(new ClientSettings(), new NeverCalledAuthenticator(), httpClient, authenticatorHttpClient);
 
             client.Dispose();
             var exception = Record.Exception(() => client.Dispose());
@@ -367,6 +360,9 @@ namespace BoletoForBanrisul.Client.Tests.Clients
         private sealed class NeverCalledAuthenticator : Auth.IAuthenticator
         {
             public Task<string> GetAccessTokenAsync(CancellationToken cancellationToken = default) =>
+                throw new InvalidOperationException("Should never be called.");
+
+            public void InvalidateToken() =>
                 throw new InvalidOperationException("Should never be called.");
         }
     }

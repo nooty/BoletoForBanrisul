@@ -18,39 +18,40 @@ namespace BoletoForBanrisul.Client
     public class BoletoClient : IBoletoClient
     {
         private readonly HttpClient _httpClient;
+        private readonly HttpClient _authenticatorHttpClient;
         private readonly IAuthenticator _authenticator;
         private readonly ClientSettings _settings;
-        private readonly bool _disposeHttpClient;
         private bool _disposed;
 
         public IAuthenticator Authenticator => _authenticator;
 
         /// <param name="config">Configurações do client.</param>
         /// <param name="authenticator">Autenticador utilizado para obter o token de acesso.</param>
-        /// <param name="httpClient">HttpClient utilizado para as requisições.</param>
-        /// <param name="disposeHttpClient">
-        /// Indica se este client é o proprietário do <paramref name="httpClient"/> e deve descartá-lo
-        /// em <see cref="Dispose"/>. Use <c>false</c> (padrão) quando o HttpClient for gerenciado pelo chamador.
-        /// </param>
-        public BoletoClient(ClientSettings config, IAuthenticator authenticator, HttpClient httpClient, bool disposeHttpClient = false)
+        /// <param name="httpClient">HttpClient utilizado para as requisições à API, com o AuthenticationHandler já configurado.</param>
+        /// <param name="authenticatorHttpClient">HttpClient utilizado pelo <paramref name="authenticator"/> para a troca do token OAuth.</param>
+        /// <remarks>
+        /// O <see cref="BoletoClientBuilder"/> é sempre o proprietário dos dois HttpClient - nada mais os
+        /// referencia - então ambos são descartados em <see cref="Dispose"/> incondicionalmente.
+        /// </remarks>
+        public BoletoClient(ClientSettings config, IAuthenticator authenticator, HttpClient httpClient, HttpClient authenticatorHttpClient)
         {
             _httpClient = httpClient;
+            _authenticatorHttpClient = authenticatorHttpClient;
             _authenticator = authenticator;
             _settings = config;
-            _disposeHttpClient = disposeHttpClient;
         }
 
         /// <summary>
-        /// Libera os recursos utilizados pelo client. Se este client for o proprietário do HttpClient
-        /// (criado internamente pelo <see cref="BoletoClientBuilder"/>), o HttpClient também é descartado.
+        /// Libera os recursos utilizados pelo client, descartando os dois HttpClient criados pelo
+        /// <see cref="BoletoClientBuilder"/> (o da API e o do autenticador).
         /// </summary>
         public void Dispose()
         {
             if (_disposed)
                 return;
 
-            if (_disposeHttpClient)
-                _httpClient.Dispose();
+            _httpClient.Dispose();
+            _authenticatorHttpClient.Dispose();
 
             _disposed = true;
         }
@@ -66,8 +67,6 @@ namespace BoletoForBanrisul.Client
                 Content = jsonContent
             };
 
-            AddBeneficiaryHeader(request);
-
             var response = await HandleRequestAsync(request, cancellationToken);
 
             var responseContent = await response.Content.ReadAsStringAsync();
@@ -77,8 +76,6 @@ namespace BoletoForBanrisul.Client
         public async Task<GetBoletoResponse> GetBoletoAsync(string idBoleto, BoletoIdentifierType? typeId = null, CancellationToken cancellationToken = default)
         {
             var request = new HttpRequestMessage(HttpMethod.Get, GetUrlForIdType(_settings.GetBoletoUrl, idBoleto, typeId));
-
-            AddBeneficiaryHeader(request);
 
             var response = await HandleRequestAsync(request, cancellationToken);
 
@@ -111,7 +108,6 @@ namespace BoletoForBanrisul.Client
                 Content = jsonContent
             };
 
-            AddBeneficiaryHeader(request);
             AddRequestModeHeader(request);
 
             var response = await HandleRequestAsync(request, cancellationToken);
@@ -139,7 +135,6 @@ namespace BoletoForBanrisul.Client
                 Content = jsonContent
             };
 
-            AddBeneficiaryHeader(request);
             AddRequestModeHeader(request);
 
             var response = await HandleRequestAsync(request, cancellationToken);
@@ -152,7 +147,6 @@ namespace BoletoForBanrisul.Client
         {
             var request = new HttpRequestMessage(HttpMethod.Post, GetUrlForIdType(_settings.CancelBoletoUrl, idBoleto, typeId));
 
-            AddBeneficiaryHeader(request);
             AddRequestModeHeader(request);
 
             var response = await HandleRequestAsync(request, cancellationToken);
@@ -165,7 +159,6 @@ namespace BoletoForBanrisul.Client
         {
             var request = new HttpRequestMessage(HttpMethod.Get, GetUrlForIdType(_settings.IssueBoletoUrl, idBoleto, typeId));
 
-            AddBeneficiaryHeader(request);
             AddRequestModeHeader(request);
 
             var response = await HandleRequestAsync(request, cancellationToken);
@@ -177,8 +170,6 @@ namespace BoletoForBanrisul.Client
 
         private async Task<HttpResponseMessage> HandleRequestAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
-            await AddAuthorizationHeaderAsync(request, cancellationToken);
-
             var response = await _httpClient.SendAsync(request, cancellationToken);
 
             await LogRequestResponseAsync(request, response);
@@ -230,19 +221,6 @@ namespace BoletoForBanrisul.Client
             {
                 Console.WriteLine($"Error logging request/response: {ex.Message}");
             }
-        }
-
-        // Método auxiliar para adicionar o header Authorization.
-        private async Task AddAuthorizationHeaderAsync(HttpRequestMessage request, CancellationToken cancellationToken)
-        {
-            string token = await _authenticator.GetAccessTokenAsync(cancellationToken);
-            request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
-        }
-
-        // Método auxiliar para adicionar o header bergs-beneficiario.
-        private void AddBeneficiaryHeader(HttpRequestMessage request)
-        {
-            request.Headers.Add("bergs-beneficiario", _settings.BeneficiaryCode);
         }
 
         private void AddRequestModeHeader(HttpRequestMessage request)

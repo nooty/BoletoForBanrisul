@@ -34,6 +34,8 @@ namespace BoletoForBanrisul.Client.Auth
             return await _tokenStorage.GetOrAddToken(_tokenKey, RequestNewTokenAsync, cancellationToken);
         }
 
+        public void InvalidateToken() => _tokenStorage.InvalidateToken(_tokenKey);
+
         // Gera uma chave de cache que não expõe o client secret para implementações de ITokenStorage.
         private static string ComputeTokenKey(string clientId, string clientSecret)
         {

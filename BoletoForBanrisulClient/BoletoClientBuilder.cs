@@ -16,12 +16,12 @@ namespace BoletoForBanrisul.Client
     public class BoletoClientBuilder
     {
         private readonly BanrisulEndpointsLoader _settingsLoader;
-        private HttpClient? _customHttpClient;
         private IAuthenticator? _authenticator;
         private ClientSettings? _clientSettings;
         private bool _useSandbox = false;
         private ITokenStorage? _tokenStorage;
         private RequestModeType _requestMode = RequestModeType.Production;
+        private HttpMessageHandler? _transportHandlerOverride;
 
         private string _beneficiaryCode = "";
         private string _clientId = "";
@@ -37,14 +37,20 @@ namespace BoletoForBanrisul.Client
         }
 
         /// <summary>
-        /// Define o cliente HTTP a ser utilizado.
-        /// Esta configuração é opcional e pode ser utilizada para definir uma instância personalizada de HttpClient.
+        /// Substitui o handler de transporte no fundo da cadeia, para que um teste possa exercitar o
+        /// pipeline real - políticas do Polly e <see cref="HttpClients.AuthenticationHandler"/> inclusos -
+        /// sem um socket de verdade.
         /// </summary>
-        /// <param name="httpClient">Uma instância do HttpClient.</param>
+        /// <remarks>
+        /// Substitui o fundo da cadeia, não o <see cref="HttpClient"/> inteiro, para que todas as camadas
+        /// acima - retries, timeout, anexação do token, header <c>bergs-beneficiario</c> - permaneçam ativas
+        /// e sob teste.
+        /// </remarks>
+        /// <param name="handler">O handler de transporte a ser usado no lugar do padrão.</param>
         /// <returns></returns>
-        public BoletoClientBuilder SetHttpClient(HttpClient httpClient)
+        internal BoletoClientBuilder SetTransportHandler(HttpMessageHandler handler)
         {
-            _customHttpClient = httpClient;
+            _transportHandlerOverride = handler ?? throw new ArgumentNullException(nameof(handler));
             return this;
         }
 
@@ -137,19 +143,20 @@ namespace BoletoForBanrisul.Client
 
             var authSettings = LoadAuthenticatorSettings(_clientSettings);
 
-            var httpClient = _customHttpClient ?? GetDefaultHttpClient();
-
             _tokenStorage ??= new SharedInMemoryTokenStorage();
 
-            _authenticator = new Authenticator(authSettings, _tokenStorage, httpClient);
+            // O autenticador recebe seu próprio HttpClient, deliberadamente separado do usado abaixo para
+            // as chamadas da API: aquele tem o AuthenticationHandler, que por sua vez chama de volta este
+            // autenticador para anexar o token em cada requisição - reutilizá-lo aqui seria circular.
+            var authenticatorHttpClient = new ResilientHttpClientBuilder().SetHandler(CreateTransportHandler()).Build();
+            _authenticator = new Authenticator(authSettings, _tokenStorage, authenticatorHttpClient);
 
-            // O BoletoClient só assume a responsabilidade por descartar o HttpClient quando ele foi
-            // criado internamente (sem SetHttpClient); um HttpClient customizado continua sob
-            // responsabilidade do chamador.
-            var disposeHttpClient = _customHttpClient == null;
+            var apiHttpClient = new ResilientHttpClientBuilder()
+                .SetHandler(new AuthenticationHandler(_authenticator, _beneficiaryCode, CreateTransportHandler()))
+                .Build();
 
             // Cria e retorna o BoletoClient com as configurações aplicadas.
-            return new BoletoClient(_clientSettings, _authenticator, httpClient, disposeHttpClient);
+            return new BoletoClient(_clientSettings, _authenticator, apiHttpClient, authenticatorHttpClient);
         }
 
         private AuthenticatorSettings LoadAuthenticatorSettings(ClientSettings clientSettings)
@@ -198,12 +205,15 @@ namespace BoletoForBanrisul.Client
             };
         }
 
-        // Cria sempre uma nova instância: cada BoletoClient construído sem SetHttpClient é
-        // proprietário do seu HttpClient e o descarta no Dispose; compartilhar uma instância
-        // entre múltiplas chamadas de Build() causaria dispose duplo.
-        private HttpClient GetDefaultHttpClient()
+        // Devolve o override de teste quando definido; caso contrário, cria sempre uma nova instância do
+        // handler padrão de transporte - dois HttpClient fazendo dispose da mesma instância causaria
+        // dispose duplo, já que Build() monta dois HttpClient (autenticador e API).
+        private HttpMessageHandler CreateTransportHandler()
         {
-            return new ResilientHttpClientBuilder().Build();
+            return _transportHandlerOverride ?? new StandardSocketsHttpHandler
+            {
+                PooledConnectionIdleTimeout = TimeSpan.FromMinutes(2)
+            };
         }
 
         private string CombineUrl(string baseUrl, string resource)

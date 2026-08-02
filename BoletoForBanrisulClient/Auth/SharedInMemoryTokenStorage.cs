@@ -46,6 +46,8 @@ namespace BoletoForBanrisul.Client.Auth
             return token != null && IsTokenValid(token);
         }
 
+        public virtual void InvalidateToken(string key) => _sharedCache.TryRemove(key, out _);
+
         // Verifica a validade do token com uma margem de segurança, limitada à metade da
         // vida útil do token para que tokens de curta duração não sejam sempre renovados.
         private static bool IsTokenValid(OAuthToken token)
