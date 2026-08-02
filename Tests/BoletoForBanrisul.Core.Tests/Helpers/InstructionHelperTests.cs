@@ -90,6 +90,35 @@ namespace BoletoForBanrisul.Core.Tests.Helpers
         }
 
         [Fact]
+        public void ConvertInstructionsToMessages_ProtestoWithAPrazoOfOne_UsesSingularDayPhrasing()
+        {
+            var instructions = new Instrucoes
+            {
+                Protesto = new Protesto { Codigo = CodigoProtesto.ProtestarDiasCorridos, Prazo = 1 }
+            };
+
+            var messages = InstructionHelper.ConvertInstructionsToMessages(instructions);
+
+            var message = Assert.Single(messages);
+            Assert.Equal("1) Protesto: Protestar após 1 dia corrido do vencimento.", message.Texto);
+        }
+
+        [Fact]
+        public void ConvertInstructionsToMessages_ProtestoWithAZeroPrazo_RendersImmediateProtest()
+        {
+            // Prazo = 0 means immediate protest, not "after 0 days" (see Boleto's Prazo validation).
+            var instructions = new Instrucoes
+            {
+                Protesto = new Protesto { Codigo = CodigoProtesto.ProtestarDiasCorridos, Prazo = 0 }
+            };
+
+            var messages = InstructionHelper.ConvertInstructionsToMessages(instructions);
+
+            var message = Assert.Single(messages);
+            Assert.Equal("1) Protesto: Protestar imediatamente após o vencimento.", message.Texto);
+        }
+
+        [Fact]
         public void ConvertInstructionsToMessages_ProtestoWithACodeOtherThanProtestarDiasCorridos_ProducesNoMessage()
         {
             // Only ProtestarDiasCorridos renders a message; NegativarDiasCorridos and NaoProtestar/NaoNegativar
@@ -134,6 +163,17 @@ namespace BoletoForBanrisul.Core.Tests.Helpers
 
             var message = Assert.Single(messages);
             Assert.Equal("1) Baixa: Baixar/Devolver após 30 dias corridos do vencimento para o Beneficiário.", message.Texto);
+        }
+
+        [Fact]
+        public void ConvertInstructionsToMessages_BaixaWithAPrazoOfOne_UsesSingularDayPhrasing()
+        {
+            var instructions = new Instrucoes { Baixa = new Baixa { Codigo = CodigoBaixa.BaixarDevolver, Prazo = 1 } };
+
+            var messages = InstructionHelper.ConvertInstructionsToMessages(instructions);
+
+            var message = Assert.Single(messages);
+            Assert.Equal("1) Baixa: Baixar/Devolver após 1 dia corrido do vencimento para o Beneficiário.", message.Texto);
         }
 
         [Fact]

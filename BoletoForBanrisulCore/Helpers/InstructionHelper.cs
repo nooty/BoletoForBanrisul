@@ -15,6 +15,10 @@ namespace BoletoForBanrisul.Core.Helpers
         // datas não variem conforme a cultura da máquina em que o código executa.
         private static readonly CultureInfo PtBrCulture = CultureInfo.GetCultureInfo("pt-BR");
 
+        // "1 dia corrido" vs. "N dias corridos": Baixa.Prazo aceita 1 ([Range(0, 99)]) e a mensagem é
+        // renderizada para qualquer Prazo > 0.
+        private static string DaysPhrase(int days) => days == 1 ? "1 dia corrido" : $"{days} dias corridos";
+
         public static List<Mensagem> ConvertInstructionsToMessages(Instrucoes instructions)
         {
             var messages = new List<Mensagem>();
@@ -104,13 +108,17 @@ namespace BoletoForBanrisul.Core.Helpers
             {
                 var protestoMsg = new StringBuilder($"{line}) Protesto: ");
 
-                if (instructions.Protesto.Prazo.HasValue)
+                if (!instructions.Protesto.Prazo.HasValue)
                 {
-                    protestoMsg.Append($"Protestar após {instructions.Protesto.Prazo} dias corridos do vencimento.");
+                    protestoMsg.Append("Protestar após o vencimento.");
+                }
+                else if (instructions.Protesto.Prazo.Value == 0)
+                {
+                    protestoMsg.Append("Protestar imediatamente após o vencimento.");
                 }
                 else
                 {
-                    protestoMsg.Append("Protestar após o vencimento.");
+                    protestoMsg.Append($"Protestar após {DaysPhrase(instructions.Protesto.Prazo.Value)} do vencimento.");
                 }
 
                 messages.Add(new Mensagem { Linha = line++, Texto = protestoMsg.ToString() });
@@ -131,7 +139,7 @@ namespace BoletoForBanrisul.Core.Helpers
             {
                 var baixaMsg = new StringBuilder($"{line}) Baixa: ");
 
-                baixaMsg.Append($"Baixar/Devolver após {instructions.Baixa.Prazo} dias corridos do vencimento para o Beneficiário.");
+                baixaMsg.Append($"Baixar/Devolver após {DaysPhrase(instructions.Baixa.Prazo)} do vencimento para o Beneficiário.");
 
                 messages.Add(new Mensagem { Linha = line++, Texto = baixaMsg.ToString() });
             }
