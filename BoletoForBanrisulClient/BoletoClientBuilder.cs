@@ -198,7 +198,6 @@ namespace BoletoForBanrisul.Client
                 CancelBoletoUrl = CombineUrl(endpoints.BaseUrl, endpoints.CancelBoletoEndpoint),
                 IssueBoletoUrl = CombineUrl(endpoints.BaseUrl, endpoints.IssueBoletoEndpoint),
                 TokenUrl = CombineUrl(endpoints.BaseUrl, endpoints.TokenEndpoint),
-                BeneficiaryCode = _beneficiaryCode,
                 EnableLogging = _enableLogging,
                 LogDirectory = _logDirectory ?? "",
                 RequestMode = _requestMode

@@ -16,8 +16,6 @@ namespace BoletoForBanrisul.Client
         public string IssueBoletoUrl { get; set; } = "";
         public string TokenUrl { get; set; } = "";
 
-        public string BeneficiaryCode { get; set; } = "";
-
         public bool EnableLogging { get; set; } = false;
         public string LogDirectory { get; set; } = "";
 

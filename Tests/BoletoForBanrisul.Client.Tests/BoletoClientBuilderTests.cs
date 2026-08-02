@@ -87,6 +87,8 @@ namespace BoletoForBanrisul.Client.Tests
             var builder = new BoletoClientBuilder().SetBeneficiary("0010000001088");
             var method = typeof(BoletoClientBuilder).GetMethod("LoadClientSettings", BindingFlags.NonPublic | BindingFlags.Instance)!;
 
+            // SetBeneficiary is still required here: LoadClientSettings guards on it even though the code
+            // no longer travels in ClientSettings - it goes straight to the AuthenticationHandler.
             var settings = (ClientSettings)method.Invoke(builder, new object[] { ApiHost.Production })!;
 
             Assert.Equal("https://api.banrisul.com.br/cobranca/v1/boletos", settings.RegisterBoletoUrl);
@@ -94,7 +96,6 @@ namespace BoletoForBanrisul.Client.Tests
             Assert.Equal("https://api.banrisul.com.br/cobranca/v1/boletos/{idBoleto}/baixar", settings.CancelBoletoUrl);
             Assert.Equal("https://api.banrisul.com.br/cobranca/v1/boletos/{idBoleto}/emitir", settings.IssueBoletoUrl);
             Assert.Equal("https://api.banrisul.com.br/auth/oauth/v2/token", settings.TokenUrl);
-            Assert.Equal("0010000001088", settings.BeneficiaryCode);
         }
 
         // --- UseSandbox. ---
