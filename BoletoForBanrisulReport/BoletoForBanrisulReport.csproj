@@ -18,6 +18,8 @@ Key features:
 
 1. Generation of boletos in PDF format
 2. Generation of a zip file containing generated boleto PDFs
+3. Cancellable conversions, with a hard deadline that kills a wedged browser
+4. A disposable Chromium profile per conversion and a free disk space pre-check, so a full disk fails fast instead of hanging
 
 This package uses shared boleto models from BoletoForBanrisul.Core.
 
@@ -26,7 +28,7 @@ The component uses the ChromiumHtmlToPdfLib library to generate boleto PDFs via 
 	<PackageLicenseFile>LICENSE</PackageLicenseFile>
 	<PackageId>$(AssemblyName.Replace("Report", ".Report"))</PackageId>
 	<GenerateDocumentationFile>True</GenerateDocumentationFile>
-	<Version>1.0.0-rc.6</Version>
+	<Version>1.0.0-rc.7</Version>
   </PropertyGroup>
 
   <ItemGroup>
