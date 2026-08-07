@@ -32,6 +32,14 @@ namespace BoletoForBanrisul.Report.Utils
     {
         private const string ProfilesDirectoryName = "boletoforbanrisul-chromium-profiles";
 
+        // Espera entre as tentativas de apagar o profile da conversão. Ver DeleteProfileDirectoryAsync.
+        private static readonly TimeSpan[] ProfileDeleteRetryDelays =
+        {
+            TimeSpan.FromMilliseconds(50),
+            TimeSpan.FromMilliseconds(150),
+            TimeSpan.FromMilliseconds(400)
+        };
+
         // A limpeza de órfãos varre o diretório temporário inteiro, então roda uma vez por processo
         // e não uma vez por instância.
         private static int _orphanCleanupState;
@@ -188,7 +196,7 @@ namespace BoletoForBanrisul.Report.Utils
                 handle.Dispose();
 
                 if (isDisposableProfile)
-                    DeleteDirectory(profileDirectory);
+                    await DeleteProfileDirectoryAsync(profileDirectory).ConfigureAwait(false);
             }
         }
 
@@ -345,18 +353,40 @@ namespace BoletoForBanrisul.Report.Utils
             CleanupOrphanedProfiles(_settings.OrphanProfileMaxAge, _logger);
         }
 
-        private void DeleteDirectory(string directory)
+        /// <summary>
+        /// Remove o profile descartável da conversão, com retentativas curtas.
+        /// </summary>
+        /// <remarks>
+        /// Matar o Chromium não devolve os handles na mesma hora: o Crashpad mantém o
+        /// <c>CrashpadMetrics-active.pma</c> - 1 MB, mapeado em memória - preso por um instante
+        /// depois de o processo morrer, e a remoção falha com acesso negado justo nesse arquivo,
+        /// depois de já ter apagado todo o resto do profile. A espera é curta - na prática o handle
+        /// já saiu na primeira retentativa - mas sem ela sobra 1 MB por conversão.
+        /// </remarks>
+        private async Task DeleteProfileDirectoryAsync(string directory)
         {
-            try
+            for (var attempt = 0; ; attempt++)
             {
-                if (Directory.Exists(directory))
-                    Directory.Delete(directory, recursive: true);
-            }
-            catch (Exception exception)
-            {
-                // O profile fica para a limpeza de órfãos; perder a limpeza não pode custar o PDF
-                // já gerado.
-                _logger?.LogWarning(exception, "Não foi possível remover o profile do Chromium {directory}.", directory);
+                try
+                {
+                    if (Directory.Exists(directory))
+                        Directory.Delete(directory, recursive: true);
+
+                    return;
+                }
+                catch (Exception exception) when (attempt < ProfileDeleteRetryDelays.Length &&
+                                                  (exception is IOException || exception is UnauthorizedAccessException))
+                {
+                    // Sem o token: cancelar a conversão não é motivo para deixar o profile para trás.
+                    await Task.Delay(ProfileDeleteRetryDelays[attempt]).ConfigureAwait(false);
+                }
+                catch (Exception exception)
+                {
+                    // O profile fica para a limpeza de órfãos; perder a limpeza não pode custar o PDF
+                    // já gerado.
+                    _logger?.LogWarning(exception, "Não foi possível remover o profile do Chromium {directory}.", directory);
+                    return;
+                }
             }
         }
 
