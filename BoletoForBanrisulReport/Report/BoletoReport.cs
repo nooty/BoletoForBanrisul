@@ -9,27 +9,50 @@ using System.IO.Compression;
 using System.Linq;
 using System.Reflection;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace BoletoForBanrisul.Report
 {
+    /// <summary>
+    /// Gerador de PDF de boletos.
+    /// </summary>
+    /// <remarks>
+    /// Depois de construído é imutável e não guarda estado entre chamadas, então pode ser usado
+    /// concorrentemente. Não sincroniza nada por conta própria: o RazorLight já serializa a
+    /// compilação de template por chave, e a concorrência da conversão é decidida pelo
+    /// <see cref="IPdfConverter"/> - serializar aqui anularia a configuração dele.
+    /// </remarks>
     public class BoletoReport : IBoletoReport
     {
-        private readonly SemaphoreSlim _printSemaphore = new SemaphoreSlim(1, 1);
-        private readonly SemaphoreSlim _zipSemaphore = new SemaphoreSlim(1, 1);
-
-        private PrintSettings _settings;
-        private IPdfConverter _pdfConverter;
+        private readonly PrintSettings _settings;
+        private readonly IPdfConverter _pdfConverter;
+        private readonly bool _ownsPdfConverter;
         private readonly RazorLightEngine _razorEngine;
         private readonly string _templateKey;
         private readonly string _resourcesNamespace = "BoletoForBanrisul.Report.Resources";
         private readonly string _templateResourceName = "Boleto.cshtml";
         private readonly string _logoResource = "BoletoForBanrisul.Report.Resources.Banrisul.png";
 
+        private bool _disposed;
+
+        /// <summary>
+        /// Cria o gerador com um conversor fornecido pelo chamador, que continua responsável por
+        /// descartá-lo.
+        /// </summary>
+        /// <param name="settings">Configurações de impressão.</param>
+        /// <param name="pdfConverter">Conversor de HTML para PDF.</param>
         public BoletoReport(PrintSettings settings, IPdfConverter pdfConverter)
+            : this(settings, pdfConverter, ownsPdfConverter: false)
         {
-            _settings = settings;
-            _pdfConverter = pdfConverter;
+        }
+
+        internal BoletoReport(PrintSettings settings, IPdfConverter pdfConverter, bool ownsPdfConverter)
+        {
+            _settings = settings ?? throw new ArgumentNullException(nameof(settings));
+            _pdfConverter = pdfConverter ?? throw new ArgumentNullException(nameof(pdfConverter));
+            _ownsPdfConverter = ownsPdfConverter;
+
             ValidateSettings();
 
             (_razorEngine, _templateKey) = BuildRazorEngine();
@@ -57,52 +80,48 @@ namespace BoletoForBanrisul.Report
             return (fileEngine, _settings.TemplateFileName);
         }
 
-        public async Task<byte[]> PrintAsync(Boleto boleto)
+        /// <inheritdoc />
+        public async Task<byte[]> PrintAsync(Boleto boleto, CancellationToken cancellationToken = default)
         {
-            await _printSemaphore.WaitAsync();
+            if (boleto == null)
+                throw new ArgumentNullException(nameof(boleto));
 
-            try
-            {
-                var boletoHtml = await RenderBoletoHtml(boleto);
+            ThrowIfDisposed();
 
-                return await _pdfConverter.ConvertToPdfAsync(boletoHtml);
-            }
-            finally
-            {
-                _printSemaphore.Release();
-            }
+            var boletoHtml = await RenderBoletoHtml(boleto, cancellationToken);
+
+            return await _pdfConverter.ConvertToPdfAsync(boletoHtml, cancellationToken);
         }
 
-        public async Task<byte[]> ZipBoletosAsync(IEnumerable<Boleto> boletos)
+        /// <inheritdoc />
+        public async Task<byte[]> ZipBoletosAsync(IEnumerable<Boleto> boletos, CancellationToken cancellationToken = default)
         {
-            await _zipSemaphore.WaitAsync();
+            if (boletos == null)
+                throw new ArgumentNullException(nameof(boletos));
 
-            try
+            ThrowIfDisposed();
+
+            using var zipStream = new MemoryStream();
+            using (var zipArchive = new ZipArchive(zipStream, ZipArchiveMode.Create))
             {
-                using var zipStream = new MemoryStream();
-                using (var zipArchive = new ZipArchive(zipStream, ZipArchiveMode.Create))
+                var usedFileNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+                foreach (var boleto in boletos)
                 {
-                    var usedFileNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                    cancellationToken.ThrowIfCancellationRequested();
 
-                    foreach (var boleto in boletos)
-                    {
-                        var pdfBytes = await PrintAsync(boleto);
-                        var zipEntryName = GetUniqueFileNameForBoleto(boleto, usedFileNames);
+                    var pdfBytes = await PrintAsync(boleto, cancellationToken);
+                    var zipEntryName = GetUniqueFileNameForBoleto(boleto, usedFileNames);
 
-                        var zipEntry = zipArchive.CreateEntry(zipEntryName);
+                    var zipEntry = zipArchive.CreateEntry(zipEntryName);
 
-                        using var entryStream = zipEntry.Open();
-                        await entryStream.WriteAsync(pdfBytes, 0, pdfBytes.Length);
+                    using var entryStream = zipEntry.Open();
+                    await entryStream.WriteAsync(pdfBytes, 0, pdfBytes.Length, cancellationToken);
 
-                    }
                 }
+            }
 
-                return zipStream.ToArray();
-            }
-            finally
-            {
-                _zipSemaphore.Release();
-            }
+            return zipStream.ToArray();
         }
 
         private string GetUniqueFileNameForBoleto(Boleto boleto, HashSet<string> usedFileNames)
@@ -150,9 +169,14 @@ namespace BoletoForBanrisul.Report
             return new string(input.Where(char.IsDigit).ToArray());
         }
 
-        private async Task<string> RenderBoletoHtml(Boleto boleto)
+        private async Task<string> RenderBoletoHtml(Boleto boleto, CancellationToken cancellationToken)
         {
+            cancellationToken.ThrowIfCancellationRequested();
+
             PrintViewModel viewModel = GenerateViewModel(boleto);
+
+            // Sem lock: o RazorTemplateCompiler já serializa a compilação por chave, e o cache de
+            // templates é um IMemoryCache.
             return await _razorEngine.CompileRenderAsync(_templateKey, viewModel);
         }
 
@@ -219,6 +243,32 @@ namespace BoletoForBanrisul.Report
 
             if (string.IsNullOrEmpty(_settings.FileNameTemplate))
                 throw new InvalidOperationException("Template para nome de boleto exportado não foi configurado.");
+        }
+
+        private void ThrowIfDisposed()
+        {
+            if (_disposed)
+                throw new ObjectDisposedException(nameof(BoletoReport));
+        }
+
+        /// <summary>
+        /// Libera os recursos do gerador.
+        /// </summary>
+        /// <remarks>
+        /// Descarta o conversor de PDF apenas quando foi este objeto que o criou - isto é, quando
+        /// veio do <see cref="BoletoReportBuilder.Build"/> sem
+        /// <see cref="BoletoReportBuilder.SetPdfConverter"/>. Um conversor recebido pronto costuma
+        /// ser compartilhado, e descartá-lo aqui deixaria os próximos relatórios sem conversor.
+        /// </remarks>
+        public void Dispose()
+        {
+            if (_disposed)
+                return;
+
+            _disposed = true;
+
+            if (_ownsPdfConverter && _pdfConverter is IDisposable disposableConverter)
+                disposableConverter.Dispose();
         }
     }
 

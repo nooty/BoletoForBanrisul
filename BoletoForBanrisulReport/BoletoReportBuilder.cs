@@ -18,6 +18,7 @@ namespace BoletoForBanrisul.Report
     {
         private PrintSettings _settings = new PrintSettings();
         private IPdfConverter? _pdfConverter;
+        private Action<ChromiumConverterSettings>? _configureChromium;
 
         public BoletoReportBuilder() {
         }
@@ -42,20 +43,57 @@ namespace BoletoForBanrisul.Report
         /// <returns></returns>
         public BoletoReportBuilder SetPdfConverter(IPdfConverter pdfConverter)
         {
-            _pdfConverter = pdfConverter;
+            _pdfConverter = pdfConverter ?? throw new ArgumentNullException(nameof(pdfConverter));
 
             return this;
         }
 
         /// <summary>
+        /// Configura o conversor Chromium padrão - timeouts, espaço mínimo em disco, argumentos,
+        /// logger e concorrência.
+        /// Esta configuração é opcional e não pode ser combinada com <see cref="SetPdfConverter"/>.
+        /// </summary>
+        /// <param name="configureChromium">A ação que ajusta as configurações do conversor.</param>
+        /// <returns></returns>
+        public BoletoReportBuilder ConfigureChromium(Action<ChromiumConverterSettings> configureChromium)
+        {
+            _configureChromium = configureChromium ?? throw new ArgumentNullException(nameof(configureChromium));
+
+            return this;
+        }
+
+        /// <summary>
+        /// Indica se o conversor de PDF já foi decidido, por <see cref="SetPdfConverter"/> ou por
+        /// <see cref="ConfigureChromium"/>.
+        /// </summary>
+        /// <remarks>
+        /// O registro de DI injeta o conversor do contêiner só quando isto é <c>false</c>.
+        /// </remarks>
+        internal bool HasPdfConverterConfigured => _pdfConverter != null || _configureChromium != null;
+
+        /// <summary>
         /// Constrói IBoletoReport com as configurações fornecidas.
         /// </summary>
+        /// <remarks>
+        /// Sem <see cref="SetPdfConverter"/>, o relatório construído é dono do conversor Chromium
+        /// criado aqui e o descarta no próprio <see cref="IDisposable.Dispose"/>. Para chamar
+        /// <see cref="Build"/> repetidamente, forneça um conversor compartilhado, para não subir um
+        /// Chromium por relatório.
+        /// </remarks>
         /// <returns></returns>
         public IBoletoReport Build()
         {
-            var converter = _pdfConverter ?? new ChromiumHtmlToPdfConverter();
+            if (_pdfConverter != null && _configureChromium != null)
+                throw new InvalidOperationException("Erro no builder: 'SetPdfConverter' e 'ConfigureChromium' não podem ser usados juntos. O 'ConfigureChromium' só configura o conversor Chromium padrão, que deixa de ser usado quando um conversor próprio é fornecido.");
 
-            return new BoletoReport(_settings, converter);
+            if (_pdfConverter != null)
+                return new BoletoReport(_settings, _pdfConverter, ownsPdfConverter: false);
+
+            var converter = _configureChromium != null
+                ? new ChromiumHtmlToPdfConverter(_configureChromium)
+                : new ChromiumHtmlToPdfConverter();
+
+            return new BoletoReport(_settings, converter, ownsPdfConverter: true);
         }
     }
 }

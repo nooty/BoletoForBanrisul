@@ -1,6 +1,8 @@
 using BoletoForBanrisul.Core.Models;
 using BoletoForBanrisul.Core.Models.Types;
 using BoletoForBanrisul.Report;
+using BoletoForBanrisul.Report.Utils;
+using System.Diagnostics;
 
 namespace BoletoForBanrisul.IntegrationTests
 {
@@ -28,7 +30,7 @@ namespace BoletoForBanrisul.IntegrationTests
                 },
             };
 
-            var report = new BoletoReportBuilder()
+            using var report = new BoletoReportBuilder()
 				.Configure((PrintSettings options) =>
                 {
                     options.PaymentLocation = "PAGÁVEL EM QUALQUER BANCO ATÉ O VENCIMENTO.";
@@ -66,27 +68,26 @@ namespace BoletoForBanrisul.IntegrationTests
                                              })
                                              .ToList();
 
-            var pdfTasks = boletos.Select(async boleto =>
-            {
-                var report = new BoletoReportBuilder()
-                    .Configure((PrintSettings options) =>
+            // Um relatório - e portanto um conversor - para as 100 conversões. Um relatório por
+            // boleto seria um Chromium por boleto; o conversor já serializa internamente.
+            using var report = new BoletoReportBuilder()
+                .Configure((PrintSettings options) =>
+                {
+                    options.PaymentLocation = "PAGÁVEL EM QUALQUER BANCO ATÉ O VENCIMENTO.";
+                    options.Beneficiary = new BeneficiarySettings
                     {
-                        options.PaymentLocation = "PAGÁVEL EM QUALQUER BANCO ATÉ O VENCIMENTO.";
-                        options.Beneficiary = new BeneficiarySettings
-                        {
-                            Code = "123456",
-                            Name = "EMPRESA TESTE",
-                            CpfCnpj = "12345678901123",
-                            Address = "RUA TESTE, 123",
-                            City = "PORTO ALEGRE",
-                            State = "RS",
-                            ZipCode = "90000-000"
-                        };
-                    })
-                    .Build();
+                        Code = "123456",
+                        Name = "EMPRESA TESTE",
+                        CpfCnpj = "12345678901123",
+                        Address = "RUA TESTE, 123",
+                        City = "PORTO ALEGRE",
+                        State = "RS",
+                        ZipCode = "90000-000"
+                    };
+                })
+                .Build();
 
-                return await report.PrintAsync(boleto);
-            });
+            var pdfTasks = boletos.Select(boleto => report.PrintAsync(boleto));
 
             byte[][] pdfResults = await Task.WhenAll(pdfTasks);
 
@@ -105,6 +106,41 @@ namespace BoletoForBanrisul.IntegrationTests
             }
 
             Assert.All(pdfResults, pdf => Assert.NotNull(pdf));
+
+            // Cada conversão usa um profile descartável, apagado ao final. Profile que sobra aqui
+            // enche o disco em produção.
+            Assert.Empty(ExistingProfiles());
+        }
+
+        [IntegrationFact]
+        public async Task Should_Abort_Conversion_When_Cancelled()
+        {
+            using var report = new BoletoReportBuilder()
+                .Configure((PrintSettings options) =>
+                {
+                    options.Beneficiary = new BeneficiarySettings { Name = "EMPRESA TESTE", CpfCnpj = "12345678901123" };
+                })
+                .Build();
+
+            using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(200));
+
+            var stopwatch = Stopwatch.StartNew();
+
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(
+                () => report.PrintAsync(BoletoGenerator.GenerateBoleto1(), cts.Token));
+
+            stopwatch.Stop();
+
+            // O ponto do cancelamento é não esperar o timeout inteiro da conversão.
+            Assert.True(stopwatch.Elapsed < TimeSpan.FromSeconds(30), $"O cancelamento levou {stopwatch.Elapsed}.");
+            Assert.Empty(ExistingProfiles());
+        }
+
+        private static string[] ExistingProfiles()
+        {
+            var root = ChromiumHtmlToPdfConverter.ProfilesRootDirectory;
+
+            return Directory.Exists(root) ? Directory.GetDirectories(root) : [];
         }
     }
 }
