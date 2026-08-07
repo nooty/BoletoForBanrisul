@@ -57,6 +57,8 @@ namespace BoletoForBanrisul.IntegrationTests
         [IntegrationFact]
         public async Task Should_Generate_Distinct_PDFs_For_Different_Boletos()
         {
+            var profilesBefore = ExistingProfiles();
+
             int numberOfBoletos = 100;
 
             List<Boleto> boletos = Enumerable.Range(1, numberOfBoletos)
@@ -109,12 +111,14 @@ namespace BoletoForBanrisul.IntegrationTests
 
             // Cada conversão usa um profile descartável, apagado ao final. Profile que sobra aqui
             // enche o disco em produção.
-            Assert.Empty(ExistingProfiles());
+            Assert.Empty(ProfilesLeakedSince(profilesBefore));
         }
 
         [IntegrationFact]
         public async Task Should_Abort_Conversion_When_Cancelled()
         {
+            var profilesBefore = ExistingProfiles();
+
             using var report = new BoletoReportBuilder()
                 .Configure((PrintSettings options) =>
                 {
@@ -133,7 +137,20 @@ namespace BoletoForBanrisul.IntegrationTests
 
             // O ponto do cancelamento é não esperar o timeout inteiro da conversão.
             Assert.True(stopwatch.Elapsed < TimeSpan.FromSeconds(30), $"O cancelamento levou {stopwatch.Elapsed}.");
-            Assert.Empty(ExistingProfiles());
+            Assert.Empty(ProfilesLeakedSince(profilesBefore));
+        }
+
+        /// <summary>
+        /// Profiles que apareceram depois de <paramref name="before"/> e não foram removidos.
+        /// </summary>
+        /// <remarks>
+        /// O assert é sobre o que a conversão deixou para trás, não sobre o conteúdo da raiz: ela
+        /// fica no diretório temporário da máquina e, por contrato, pode conter profiles de outros
+        /// processos e de execuções anteriores.
+        /// </remarks>
+        private static string[] ProfilesLeakedSince(string[] before)
+        {
+            return ExistingProfiles().Except(before, StringComparer.OrdinalIgnoreCase).ToArray();
         }
 
         private static string[] ExistingProfiles()
