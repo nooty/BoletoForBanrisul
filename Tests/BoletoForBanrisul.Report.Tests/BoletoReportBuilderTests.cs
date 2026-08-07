@@ -31,7 +31,8 @@ namespace BoletoForBanrisul.Report.Tests
             // something a caller can claim.
             var owned = new RecordingPdfConverter();
 
-            var report = new BoletoReport(new PrintSettings(), owned, ownsPdfConverter: true);
+            var report = new BoletoReport(
+                new PrintSettings(), owned, RazorBoletoTemplateRenderer.Default, ownsPdfConverter: true);
 
             report.Dispose();
 

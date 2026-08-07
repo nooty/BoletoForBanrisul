@@ -27,58 +27,49 @@ namespace BoletoForBanrisul.Report
     {
         private readonly PrintSettings _settings;
         private readonly IPdfConverter _pdfConverter;
+        private readonly IBoletoTemplateRenderer _templateRenderer;
         private readonly bool _ownsPdfConverter;
-        private readonly RazorLightEngine _razorEngine;
-        private readonly string _templateKey;
-        private readonly string _resourcesNamespace = "BoletoForBanrisul.Report.Resources";
-        private readonly string _templateResourceName = "Boleto.cshtml";
         private readonly string _logoResource = "BoletoForBanrisul.Report.Resources.Banrisul.png";
 
         private bool _disposed;
 
         /// <summary>
-        /// Cria o gerador com um conversor fornecido pelo chamador, que continua responsável por
-        /// descartá-lo.
+        /// Cria o gerador com o template embutido e um conversor fornecido pelo chamador, que
+        /// continua responsável por descartá-lo.
         /// </summary>
         /// <param name="settings">Configurações de impressão.</param>
         /// <param name="pdfConverter">Conversor de HTML para PDF.</param>
         public BoletoReport(PrintSettings settings, IPdfConverter pdfConverter)
-            : this(settings, pdfConverter, ownsPdfConverter: false)
+            : this(settings, pdfConverter, RazorBoletoTemplateRenderer.Default, ownsPdfConverter: false)
         {
         }
 
-        internal BoletoReport(PrintSettings settings, IPdfConverter pdfConverter, bool ownsPdfConverter)
+        /// <summary>
+        /// Cria o gerador com um renderizador e um conversor fornecidos pelo chamador, que continua
+        /// responsável por descartá-los.
+        /// </summary>
+        /// <param name="settings">Configurações de impressão.</param>
+        /// <param name="pdfConverter">Conversor de HTML para PDF.</param>
+        /// <param name="templateRenderer">Renderizador do HTML do boleto.</param>
+        public BoletoReport(PrintSettings settings, IPdfConverter pdfConverter, IBoletoTemplateRenderer templateRenderer)
+            : this(settings, pdfConverter, templateRenderer, ownsPdfConverter: false)
+        {
+        }
+
+        internal BoletoReport(PrintSettings settings, IPdfConverter pdfConverter, IBoletoTemplateRenderer templateRenderer, bool ownsPdfConverter)
         {
             _settings = settings ?? throw new ArgumentNullException(nameof(settings));
             _pdfConverter = pdfConverter ?? throw new ArgumentNullException(nameof(pdfConverter));
+            _templateRenderer = templateRenderer ?? throw new ArgumentNullException(nameof(templateRenderer));
             _ownsPdfConverter = ownsPdfConverter;
 
             ValidateSettings();
-
-            (_razorEngine, _templateKey) = BuildRazorEngine();
         }
 
-        private (RazorLightEngine Engine, string TemplateKey) BuildRazorEngine()
-        {
-            if (string.IsNullOrEmpty(_settings.TemplateDirectoryPath))
-            {
-                var engine = new RazorLightEngineBuilder()
-                    .UseEmbeddedResourcesProject(typeof(BoletoReport).Assembly, _resourcesNamespace)
-                    .SetOperatingAssembly(Assembly.GetExecutingAssembly())
-                    .UseMemoryCachingProvider()
-                    .Build();
-
-                return (engine, _templateResourceName);
-            }
-
-            var fileEngine = new RazorLightEngineBuilder()
-                .UseFileSystemProject(_settings.TemplateDirectoryPath)
-                .SetOperatingAssembly(Assembly.GetExecutingAssembly())
-                .UseMemoryCachingProvider()
-                .Build();
-
-            return (fileEngine, _settings.TemplateFileName);
-        }
+        /// <summary>
+        /// O renderizador em uso. Existe para que o compartilhamento seja verificável em teste.
+        /// </summary>
+        internal IBoletoTemplateRenderer TemplateRenderer => _templateRenderer;
 
         /// <inheritdoc />
         public async Task<byte[]> PrintAsync(Boleto boleto, CancellationToken cancellationToken = default)
@@ -171,13 +162,9 @@ namespace BoletoForBanrisul.Report
 
         private async Task<string> RenderBoletoHtml(Boleto boleto, CancellationToken cancellationToken)
         {
-            cancellationToken.ThrowIfCancellationRequested();
-
             PrintViewModel viewModel = GenerateViewModel(boleto);
 
-            // Sem lock: o RazorTemplateCompiler já serializa a compilação por chave, e o cache de
-            // templates é um IMemoryCache.
-            return await _razorEngine.CompileRenderAsync(_templateKey, viewModel);
+            return await _templateRenderer.RenderAsync(viewModel, cancellationToken);
         }
 
         private PrintViewModel GenerateViewModel(Boleto boleto)
@@ -227,20 +214,8 @@ namespace BoletoForBanrisul.Report
             if (!string.IsNullOrEmpty(_settings.LogoFilePath) && !File.Exists(_settings.LogoFilePath))
                 throw new InvalidOperationException($"Arquivo para o logo do boleto inválido. File={_settings.LogoFilePath}");
 
-            if (!string.IsNullOrEmpty(_settings.TemplateDirectoryPath))
-            {
-                if (!Directory.Exists(_settings.TemplateDirectoryPath))
-                    throw new InvalidOperationException($"Caminho do arquivo de template inválido. Path={_settings.TemplateDirectoryPath}");
-
-                if (string.IsNullOrEmpty(_settings.TemplateFileName))
-                    throw new InvalidOperationException("Nome do arquivo de template não foi configurado.");
-
-                var templateFilePath = Path.Combine(_settings.TemplateDirectoryPath, _settings.TemplateFileName);
-
-                if (!File.Exists(templateFilePath))
-                    throw new InvalidOperationException($"Arquivo de template do boleto inválido. File={templateFilePath}");
-            }
-
+            // A validação do template não está aqui: quem conhece a origem do template é o
+            // IBoletoTemplateRenderer, e ele valida no próprio construtor.
             if (string.IsNullOrEmpty(_settings.FileNameTemplate))
                 throw new InvalidOperationException("Template para nome de boleto exportado não foi configurado.");
         }
@@ -258,7 +233,8 @@ namespace BoletoForBanrisul.Report
         /// Descarta o conversor de PDF apenas quando foi este objeto que o criou - isto é, quando
         /// veio do <see cref="BoletoReportBuilder.Build"/> sem
         /// <see cref="BoletoReportBuilder.SetPdfConverter"/>. Um conversor recebido pronto costuma
-        /// ser compartilhado, e descartá-lo aqui deixaria os próximos relatórios sem conversor.
+        /// ser compartilhado, e descartá-lo aqui deixaria os próximos relatórios sem conversor. O
+        /// mesmo vale para o renderizador, que nunca é descartado aqui.
         /// </remarks>
         public void Dispose()
         {

@@ -19,6 +19,7 @@ namespace BoletoForBanrisul.Report
         private PrintSettings _settings = new PrintSettings();
         private IPdfConverter? _pdfConverter;
         private Action<ChromiumConverterSettings>? _configureChromium;
+        private IBoletoTemplateRenderer? _templateRenderer;
 
         public BoletoReportBuilder() {
         }
@@ -72,6 +73,30 @@ namespace BoletoForBanrisul.Report
         internal bool HasPdfConverterConfigured => _pdfConverter != null || _configureChromium != null;
 
         /// <summary>
+        /// Define o renderizador do HTML do boleto, para usar um template próprio ou compartilhar um
+        /// renderizador já construído.
+        /// Esta configuração é opcional. Caso não seja definida, é usado
+        /// <see cref="RazorBoletoTemplateRenderer.Default"/>, com o template embutido no pacote.
+        /// </summary>
+        /// <remarks>
+        /// O renderizador é caro de construir e seguro de compartilhar: passe sempre a mesma
+        /// instância.
+        /// </remarks>
+        /// <param name="templateRenderer">Instância do renderizador a ser usada.</param>
+        /// <returns></returns>
+        public BoletoReportBuilder SetTemplateRenderer(IBoletoTemplateRenderer templateRenderer)
+        {
+            _templateRenderer = templateRenderer ?? throw new ArgumentNullException(nameof(templateRenderer));
+
+            return this;
+        }
+
+        /// <summary>
+        /// Indica se o renderizador já foi definido por <see cref="SetTemplateRenderer"/>.
+        /// </summary>
+        internal bool HasTemplateRendererConfigured => _templateRenderer != null;
+
+        /// <summary>
         /// Constrói IBoletoReport com as configurações fornecidas.
         /// </summary>
         /// <remarks>
@@ -86,14 +111,16 @@ namespace BoletoForBanrisul.Report
             if (_pdfConverter != null && _configureChromium != null)
                 throw new InvalidOperationException("Erro no builder: 'SetPdfConverter' e 'ConfigureChromium' não podem ser usados juntos. O 'ConfigureChromium' só configura o conversor Chromium padrão, que deixa de ser usado quando um conversor próprio é fornecido.");
 
+            var renderer = _templateRenderer ?? RazorBoletoTemplateRenderer.Default;
+
             if (_pdfConverter != null)
-                return new BoletoReport(_settings, _pdfConverter, ownsPdfConverter: false);
+                return new BoletoReport(_settings, _pdfConverter, renderer, ownsPdfConverter: false);
 
             var converter = _configureChromium != null
                 ? new ChromiumHtmlToPdfConverter(_configureChromium)
                 : new ChromiumHtmlToPdfConverter();
 
-            return new BoletoReport(_settings, converter, ownsPdfConverter: true);
+            return new BoletoReport(_settings, converter, renderer, ownsPdfConverter: true);
         }
     }
 }

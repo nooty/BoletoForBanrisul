@@ -8,21 +8,19 @@ using System.Threading.Tasks;
 
 namespace BoletoForBanrisul.Report
 {
+    /// <summary>
+    /// Configurações do conteúdo de um boleto impresso.
+    /// </summary>
+    /// <remarks>
+    /// São dados que podem variar de um boleto para o outro. A origem do template não está aqui:
+    /// ela é configuração de aplicação e vive no <see cref="IBoletoTemplateRenderer"/>.
+    /// </remarks>
     public class PrintSettings
     {
         /// <summary>
         /// Caminho para o arquivo onde o logotipo do boleto está armazenado.
         /// </summary>
         public string LogoFilePath { get; set; } = "";
-        /// <summary>
-        /// Caminho para o diretório onde o template do boleto está armazenado.
-        /// </summary>
-        public string TemplateDirectoryPath { get; set; } = "";
-
-        /// <summary>
-        /// Nome do arquivo de template que será usado para gerar o HTML do boleto.
-        /// </summary>
-        public string TemplateFileName { get; set; } = "";
 
         /// <summary>
         /// Máscara para o nome do arquivo PDF gerado. 
