@@ -29,7 +29,7 @@ For local export of boletos in PDF format, use the complementary component Bolet
     <RepositoryUrl>https://github.com/nooty/BoletoForBanrisul</RepositoryUrl>
     <PackageLicenseFile>LICENSE</PackageLicenseFile>
     <GenerateDocumentationFile>True</GenerateDocumentationFile>
-	<Version>1.0.0-rc.6</Version>
+	<Version>1.0.0-rc.7</Version>
   </PropertyGroup>
 
   <ItemGroup>
