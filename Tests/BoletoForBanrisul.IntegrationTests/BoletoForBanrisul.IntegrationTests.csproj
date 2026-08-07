@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <!-- The three shipping libraries target netstandard2.0; tests run on a real framework instead, and
@@ -9,6 +9,7 @@
     <IsPackable>false</IsPackable>
     <IsTestProject>true</IsTestProject>
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <UserSecretsId>bce6277d-c34e-4e48-8290-722094a6f938</UserSecretsId>
   </PropertyGroup>
 
   <ItemGroup>
