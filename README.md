@@ -98,9 +98,17 @@ Os tipos vivem em `BoletoForBanrisul.Report.Exceptions`. A distinção existe pa
 retry não fique em `Handle<Exception>`, que retentaria também cancelamento e disco cheio —
 multiplicando o tempo preso justamente nos casos em que retentar não resolve.
 
-Em processos de longa duração, chame
-`ChromiumHtmlToPdfConverter.CleanupOrphanedProfiles(TimeSpan.FromHours(1))` no start, para remover
-profiles deixados para trás por um processo morto no meio de uma conversão.
+Cada conversão usa um profile descartável, apagado ao final. Como rede de segurança contra o que
+escapar disso — um processo morto no meio de uma conversão, um handle que não foi liberado a tempo —
+o conversor varre os profiles esquecidos sozinho: quando a última varredura passou de
+`OrphanCleanupInterval` (padrão 1 hora), a conversão seguinte dispara uma nova em background,
+apagando o que estiver parado há mais de `OrphanProfileMaxAge`. Quem dispara é a conversão e não um
+timer, porque profile órfão só nasce de uma conversão — um processo ocioso não acumula nada para
+limpar. Ao varrer sozinho, o conversor nunca considera órfão um profile mais novo que
+`ConversionTimeout + HardTimeoutGrace`: ele ainda pode pertencer a uma conversão em andamento.
+
+`ChromiumHtmlToPdfConverter.CleanupOrphanedProfiles(TimeSpan.FromHours(1))` continua público para uma
+varredura manual no start, útil depois de uma queda.
 
 ## Instalação
 

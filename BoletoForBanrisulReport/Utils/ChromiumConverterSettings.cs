@@ -3,6 +3,7 @@ using ChromiumHtmlToPdfLib.Settings;
 using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
+using System.Threading;
 
 namespace BoletoForBanrisul.Report.Utils
 {
@@ -134,8 +135,25 @@ namespace BoletoForBanrisul.Report.Utils
         /// Idade a partir da qual um profile temporário esquecido é considerado órfão e apagado.
         /// Padrão: 1 hora.
         /// </summary>
+        /// <remarks>
+        /// Ao varrer sozinho, o conversor nunca usa um valor menor que
+        /// <see cref="ConversionTimeout"/> + <see cref="HardTimeoutGrace"/>: profile mais novo que o
+        /// deadline ainda pode pertencer a uma conversão em andamento. O piso vale pelas
+        /// configurações desta instância, e a raiz de profiles é compartilhada - um processo vizinho
+        /// com timeout maior depende deste valor para não ter o profile apagado no meio da conversão.
+        /// </remarks>
         /// <seealso cref="ChromiumHtmlToPdfConverter.CleanupOrphanedProfiles(TimeSpan, ILogger)"/>
         public TimeSpan OrphanProfileMaxAge { get; set; } = TimeSpan.FromHours(1);
+
+        /// <summary>
+        /// Intervalo mínimo entre duas varreduras de profiles órfãos no mesmo processo. Padrão: 1
+        /// hora. Use <see cref="Timeout.InfiniteTimeSpan"/> para varrer apenas uma vez por processo.
+        /// </summary>
+        /// <remarks>
+        /// A varredura é disparada pela conversão, não por um timer: profile órfão só nasce de uma
+        /// conversão, então um processo ocioso não acumula nada para limpar.
+        /// </remarks>
+        public TimeSpan OrphanCleanupInterval { get; set; } = TimeSpan.FromHours(1);
 
         /// <summary>
         /// Valida os valores configurados. Chamado pelo construtor do conversor.
@@ -162,6 +180,9 @@ namespace BoletoForBanrisul.Report.Utils
 
             if (OrphanProfileMaxAge < TimeSpan.Zero)
                 throw new ArgumentOutOfRangeException(nameof(OrphanProfileMaxAge), OrphanProfileMaxAge, "A idade máxima de profiles órfãos não pode ser negativa.");
+
+            if (OrphanCleanupInterval < TimeSpan.Zero && OrphanCleanupInterval != Timeout.InfiniteTimeSpan)
+                throw new ArgumentOutOfRangeException(nameof(OrphanCleanupInterval), OrphanCleanupInterval, "O intervalo de limpeza de órfãos não pode ser negativo.");
 
             if (PageSettings == null)
                 throw new ArgumentNullException(nameof(PageSettings), "As configurações de página não podem ser nulas.");

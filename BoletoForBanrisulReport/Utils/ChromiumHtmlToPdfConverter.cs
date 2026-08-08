@@ -3,6 +3,7 @@ using ChromiumHtmlToPdfLib;
 using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Threading;
 
@@ -40,9 +41,14 @@ namespace BoletoForBanrisul.Report.Utils
             TimeSpan.FromMilliseconds(400)
         };
 
-        // A limpeza de órfãos varre o diretório temporário inteiro, então roda uma vez por processo
-        // e não uma vez por instância.
-        private static int _orphanCleanupState;
+        // A varredura percorre o diretório temporário inteiro, então é compartilhada por todas as
+        // instâncias: uma varredura de cada vez, por processo.
+        private static int _orphanCleanupRunning;
+
+        // Relógio da última varredura concluída; long.MinValue significa "nunca varreu". Stopwatch e
+        // não DateTime porque o relógio do sistema pode andar para trás e travar a limpeza para
+        // sempre.
+        private static long _lastOrphanCleanupTimestamp = long.MinValue;
 
         private readonly ChromiumConverterSettings _settings;
         private readonly SemaphoreSlim _conversionSemaphore;
@@ -108,13 +114,15 @@ namespace BoletoForBanrisul.Report.Utils
 
             cancellationToken.ThrowIfCancellationRequested();
 
+            // Fora do semáforo: a limpeza não disputa o slot de conversão.
+            ScheduleOrphanCleanupIfDue();
+
             await _conversionSemaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
 
             try
             {
                 ThrowIfDisposed();
 
-                RunOrphanCleanupOncePerProcess();
                 EnsureFreeDiskSpace();
 
                 return await ConvertAsync(html, cancellationToken).ConfigureAwait(false);
@@ -345,12 +353,91 @@ namespace BoletoForBanrisul.Report.Utils
             }
         }
 
-        private void RunOrphanCleanupOncePerProcess()
+        /// <summary>
+        /// Dispara a varredura de profiles órfãos quando ela está vencida.
+        /// </summary>
+        /// <remarks>
+        /// Fora do semáforo e em background: enumerar e apagar diretórios é E/S que não tem por que
+        /// entrar no tempo de resposta de quem pediu o PDF, ainda mais agora que se repete. Quem
+        /// dispara é a conversão, e não um timer: profile órfão só nasce de uma conversão, então um
+        /// processo ocioso não tem o que limpar.
+        /// </remarks>
+        private void ScheduleOrphanCleanupIfDue()
         {
-            if (Interlocked.CompareExchange(ref _orphanCleanupState, 1, 0) != 0)
+            if (!IsOrphanCleanupDue(_settings.OrphanCleanupInterval))
                 return;
 
-            CleanupOrphanedProfiles(_settings.OrphanProfileMaxAge, _logger);
+            // Duas varreduras simultâneas disputariam os mesmos diretórios e só renderiam avisos de
+            // remoção falha.
+            if (Interlocked.CompareExchange(ref _orphanCleanupRunning, 1, 0) != 0)
+                return;
+
+            var maxAge = EffectiveOrphanProfileMaxAge;
+            var logger = _logger;
+
+            // Thread própria e não o pool: a varredura é E/S bloqueante de duração desconhecida, e o
+            // pool é o mesmo que carrega as continuações da conversão. Uma thread por hora é barato
+            // demais para valer o risco de disputar o pool com quem está esperando um PDF.
+            _ = Task.Factory.StartNew(
+                () =>
+                {
+                    try
+                    {
+                        CleanupOrphanedProfiles(maxAge, logger);
+                    }
+                    catch (Exception exception)
+                    {
+                        // Ninguém observa esta Task: uma exceção não capturada aqui sobe como
+                        // UnobservedTaskException e pode derrubar o host.
+                        logger?.LogWarning(exception, "Falha na limpeza de profiles órfãos do Chromium.");
+                    }
+                    finally
+                    {
+                        // Carimba no fim, não no começo: uma varredura lenta não deve vencer sozinha.
+                        Interlocked.Exchange(ref _lastOrphanCleanupTimestamp, Stopwatch.GetTimestamp());
+                        Interlocked.Exchange(ref _orphanCleanupRunning, 0);
+                    }
+                },
+                CancellationToken.None,
+                TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach,
+                TaskScheduler.Default);
+        }
+
+        private static bool IsOrphanCleanupDue(TimeSpan interval)
+        {
+            var last = Interlocked.Read(ref _lastOrphanCleanupTimestamp);
+
+            if (last == long.MinValue)
+                return true;
+
+            if (interval == Timeout.InfiniteTimeSpan)
+                return false;
+
+            var elapsed = (Stopwatch.GetTimestamp() - last) / (double)Stopwatch.Frequency;
+
+            return elapsed >= interval.TotalSeconds;
+        }
+
+        /// <summary>
+        /// Idade mínima efetiva para considerar um profile órfão: nunca menor que o deadline da
+        /// conversão.
+        /// </summary>
+        /// <remarks>
+        /// Enquanto a varredura rodava uma vez por processo, ela acontecia antes de qualquer profile
+        /// existir. Rodando em paralelo com as conversões, um
+        /// <see cref="ChromiumConverterSettings.OrphanProfileMaxAge"/> curto passaria a apagar o
+        /// <c>--user-data-dir</c> de uma conversão em andamento debaixo do Chromium. Um profile mais
+        /// novo que <c>ConversionTimeout + HardTimeoutGrace</c> ainda pode ter dono, então não é
+        /// órfão.
+        /// </remarks>
+        private TimeSpan EffectiveOrphanProfileMaxAge
+        {
+            get
+            {
+                var deadline = _settings.ConversionTimeout + _settings.HardTimeoutGrace;
+
+                return _settings.OrphanProfileMaxAge > deadline ? _settings.OrphanProfileMaxAge : deadline;
+            }
         }
 
         /// <summary>
