@@ -30,15 +30,17 @@ namespace BoletoForBanrisul.IntegrationTests
         public const string RunEnvironmentVariable = "RUN_BANRISUL_INTEGRATION_TESTS";
         public const string SkipReason = "Banrisul integration tests are disabled. Set RUN_BANRISUL_INTEGRATION_TESTS=true to run them.";
 
-        public static bool ShouldRun
-        {
-            get
-            {
-                var value = Environment.GetEnvironmentVariable(RunEnvironmentVariable);
+        public static bool ShouldRun => IsEnabled(RunEnvironmentVariable);
 
-                return string.Equals(value, "true", StringComparison.OrdinalIgnoreCase) ||
-                       string.Equals(value, "1", StringComparison.OrdinalIgnoreCase);
-            }
+        /// <summary>
+        /// Whether an environment variable is set to a truthy value.
+        /// </summary>
+        public static bool IsEnabled(string variable)
+        {
+            var value = Environment.GetEnvironmentVariable(variable);
+
+            return string.Equals(value, "true", StringComparison.OrdinalIgnoreCase) ||
+                   string.Equals(value, "1", StringComparison.OrdinalIgnoreCase);
         }
     }
 }
