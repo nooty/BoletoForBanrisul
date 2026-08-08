@@ -189,6 +189,19 @@ namespace BoletoForBanrisul.Report.Utils
             {
                 throw;
             }
+            catch (Exception exception) when (cancellationToken.IsCancellationRequested)
+            {
+                // Cancelada no meio da partida do Chromium, a biblioteca relata a interrupção com o
+                // que estiver à mão - NullReferenceException do handshake do DevTools abortado,
+                // ConversionException, TaskCanceledException - conforme o ponto exato em que o token
+                // pegou. Quem cancelou recebe cancelamento; o que a biblioteca lançou fica no log e
+                // na InnerException.
+                _logger?.LogWarning(exception,
+                    "A conversão cancelada veio à tona como {exceptionType}; tratada como cancelamento.",
+                    exception.GetType().Name);
+
+                throw new OperationCanceledException("A conversão para PDF foi cancelada.", exception, cancellationToken);
+            }
             catch (OperationCanceledException exception)
             {
                 throw new TimeoutException(
@@ -477,12 +490,13 @@ namespace BoletoForBanrisul.Report.Utils
             }
         }
 
-        private static void ObserveInBackground(Task task)
+        private void ObserveInBackground(Task task)
         {
             // A conversão abandonada ainda vai falhar quando o processo morrer; sem observar a
-            // exceção, ela sobe como UnobservedTaskException e pode derrubar o host.
+            // exceção, ela sobe como UnobservedTaskException e pode derrubar o host. O log em Debug
+            // preserva o que a biblioteca lançou de fato, que aqui é esperado e não é erro.
             _ = task.ContinueWith(
-                completed => { _ = completed.Exception; },
+                completed => _logger?.LogDebug(completed.Exception, "A conversão abandonada falhou depois de o Chromium ser derrubado."),
                 CancellationToken.None,
                 TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously,
                 TaskScheduler.Default);
