@@ -37,3 +37,29 @@ dotnet test Tests/BoletoForBanrisul.IntegrationTests
 
 Também é seguro rodar `dotnet test Tests/BoletoForBanrisul.IntegrationTests` sem essas variáveis: os
 testes ficam desabilitados por padrão (reportados como *Skipped*, sem nenhuma chamada de rede).
+
+## Inspecionar os PDFs gerados
+
+Os testes de geração de PDF gravam os arquivos num diretório temporário próprio, apagado ao final de
+cada teste. Para conservá-los:
+
+```bash
+KEEP_BANRISUL_TEST_ARTIFACTS=true
+```
+
+O caminho do diretório é impresso no output do teste.
+
+## Caçar falhas intermitentes
+
+`repeat-pdf-tests.ps1` roda os testes de PDF repetidas vezes e grava a saída completa de toda
+execução que falhar em `pdf-test-failures/` — com o assert, a exceção e o stack trace. Existe porque
+uma falha intermitente só é útil se a mensagem for capturada na hora em que ela acontece.
+
+```powershell
+.\repeat-pdf-tests.ps1                                                   # 30x a classe inteira
+.\repeat-pdf-tests.ps1 -Iterations 100 -Filter Should_Abort_Conversion_When_Cancelled
+.\repeat-pdf-tests.ps1 -Iterations 200 -StopOnFirstFailure               # para no primeiro erro
+```
+
+Cada iteração também compara a quantidade de profiles do Chromium antes e depois, para separar "o
+teste falhou" de "o teste falhou porque sobrou profile".

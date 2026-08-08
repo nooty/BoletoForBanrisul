@@ -350,3 +350,5 @@ MigrationBackup/
 .ionide/
 
 dist
+# Logs das execuções repetidas dos testes de PDF (repeat-pdf-tests.ps1)
+pdf-test-failures/
