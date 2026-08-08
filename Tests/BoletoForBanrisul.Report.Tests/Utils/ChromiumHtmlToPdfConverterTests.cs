@@ -96,11 +96,21 @@ namespace BoletoForBanrisul.Report.Tests.Utils
                 settings => settings.MinimumFreeDiskMegabytes = -1,
                 settings => settings.WaitForWindowStatusTimeout = -1,
                 settings => settings.MediaLoadTimeout = -1,
-                settings => settings.OrphanProfileMaxAge = TimeSpan.FromSeconds(-1)
+                settings => settings.OrphanProfileMaxAge = TimeSpan.FromSeconds(-1),
+                settings => settings.OrphanCleanupInterval = TimeSpan.FromSeconds(-1)
             };
 
             Assert.All(invalidSettings, makeInvalid =>
                 Assert.Throws<ArgumentOutOfRangeException>(() => new ChromiumHtmlToPdfConverter(makeInvalid)));
+        }
+
+        [Fact]
+        public void Constructor_WithAnInfiniteCleanupInterval_IsAccepted()
+        {
+            // Timeout.InfiniteTimeSpan is negative, so it would fall into a naive range check - and
+            // it is the one way to ask for the old "sweep once per process" behaviour.
+            using var converter = new ChromiumHtmlToPdfConverter(settings =>
+                settings.OrphanCleanupInterval = Timeout.InfiniteTimeSpan);
         }
 
         [Fact]
@@ -127,11 +137,83 @@ namespace BoletoForBanrisul.Report.Tests.Utils
             }
             finally
             {
-                if (Directory.Exists(stale))
-                    Directory.Delete(stale, recursive: true);
+                TryDelete(stale);
+                TryDelete(recent);
+            }
+        }
 
-                if (Directory.Exists(recent))
-                    Directory.Delete(recent, recursive: true);
+        [Fact]
+        public async Task ConvertToPdfAsync_WithADueCleanupInterval_SweepsOrphanedProfilesMoreThanOnce()
+        {
+            // A zero interval leaves the sweep permanently due, which makes this independent of the
+            // order the other tests run in this process.
+            using var converter = new ChromiumHtmlToPdfConverter(settings =>
+            {
+                settings.OrphanCleanupInterval = TimeSpan.Zero;
+                settings.MinimumFreeDiskMegabytes = int.MaxValue; // fails before launching Chromium
+            });
+
+            // First conversion: guarantees a sweep has already happened in this process.
+            await Assert.ThrowsAsync<InsufficientDiskSpaceException>(
+                () => converter.ConvertToPdfAsync("<html></html>"));
+
+            // Only now does the stale profile appear. A once-per-process sweep never collects it.
+            var stale = CreateProfileDirectory(DateTime.UtcNow.AddHours(-2));
+
+            try
+            {
+                // The sweep runs in the background and gives up when another one is already in
+                // flight, so the conversion is repeated until it picks the profile up.
+                Assert.True(
+                    await WaitUntilAsync(async () =>
+                    {
+                        await Assert.ThrowsAsync<InsufficientDiskSpaceException>(
+                            () => converter.ConvertToPdfAsync("<html></html>"));
+
+                        return !Directory.Exists(stale);
+                    }, TimeSpan.FromSeconds(10)),
+                    "The orphan cleanup did not remove a stale profile created after the first sweep.");
+            }
+            finally
+            {
+                TryDelete(stale);
+            }
+        }
+
+        [Fact]
+        public async Task ConvertToPdfAsync_WithAnAggressiveOrphanMaxAge_KeepsProfilesYoungerThanTheDeadline()
+        {
+            // Taken literally, a zero max age asks for every profile to be treated as an orphan. The
+            // sweep now runs alongside conversions, so obeying it would delete the profile of a
+            // conversion still in flight.
+            using var converter = new ChromiumHtmlToPdfConverter(settings =>
+            {
+                settings.OrphanProfileMaxAge = TimeSpan.Zero;
+                settings.OrphanCleanupInterval = TimeSpan.Zero;
+                settings.MinimumFreeDiskMegabytes = int.MaxValue;
+            });
+
+            var live = CreateProfileDirectory(DateTime.UtcNow);
+
+            try
+            {
+                // Twice: the first sweep may lose the race to another test's, the second cannot be
+                // blamed on that.
+                await Assert.ThrowsAsync<InsufficientDiskSpaceException>(
+                    () => converter.ConvertToPdfAsync("<html></html>"));
+
+                await Task.Delay(TimeSpan.FromMilliseconds(500));
+
+                await Assert.ThrowsAsync<InsufficientDiskSpaceException>(
+                    () => converter.ConvertToPdfAsync("<html></html>"));
+
+                await Task.Delay(TimeSpan.FromMilliseconds(500));
+
+                Assert.True(Directory.Exists(live), "The cleanup deleted a profile younger than the conversion deadline.");
+            }
+            finally
+            {
+                TryDelete(live);
             }
         }
 
@@ -157,6 +239,40 @@ namespace BoletoForBanrisul.Report.Tests.Utils
             var root = ChromiumHtmlToPdfConverter.ProfilesRootDirectory;
 
             return Directory.Exists(root) ? Directory.GetDirectories(root).OrderBy(x => x).ToArray() : [];
+        }
+
+        private static async Task<bool> WaitUntilAsync(Func<Task<bool>> condition, TimeSpan timeout)
+        {
+            var deadline = DateTime.UtcNow + timeout;
+
+            while (DateTime.UtcNow < deadline)
+            {
+                if (await condition())
+                    return true;
+
+                await Task.Delay(100);
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// Deliberately tolerant: a background sweep can delete the directory between the check and
+        /// the delete.
+        /// </summary>
+        private static void TryDelete(string directory)
+        {
+            try
+            {
+                if (Directory.Exists(directory))
+                    Directory.Delete(directory, recursive: true);
+            }
+            catch (IOException)
+            {
+            }
+            catch (UnauthorizedAccessException)
+            {
+            }
         }
     }
 }
