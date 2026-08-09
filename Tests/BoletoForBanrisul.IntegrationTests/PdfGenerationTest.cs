@@ -9,10 +9,9 @@ using Xunit.Abstractions;
 namespace BoletoForBanrisul.IntegrationTests
 {
     /// <summary>
-    /// Real, Chrome/Chromium-backed PDF generation. The zip file-name templating half of the old
-    /// <c>Test/Integration/PdfGenerationTest</c>, which only ever needed a stubbed
-    /// <see cref="Report.Utils.IPdfConverter"/> and never touched a browser, now lives ungated in
-    /// <c>Report.Tests/PdfGenerationTest</c>.
+    /// Real, Chrome/Chromium-backed PDF generation. The zip file-name templating, which only needs a
+    /// stubbed <see cref="Report.Utils.IPdfConverter"/> and never touches a browser, is covered ungated
+    /// in <c>Report.Tests/PdfGenerationTest</c>.
     /// </summary>
     [Trait("Category", "Integration")]
     public class PdfGenerationTest : IDisposable
@@ -90,8 +89,8 @@ namespace BoletoForBanrisul.IntegrationTests
                                              })
                                              .ToList();
 
-            // Um relatório - e portanto um conversor - para todas as conversões. Um relatório por
-            // boleto seria um Chromium por boleto; o conversor já serializa internamente.
+            // One report - and therefore one converter - for every conversion. A report per boleto
+            // would be a Chromium per boleto; the converter already serialises internally.
             using var report = new BoletoReportBuilder()
                 .Configure((PrintSettings options) =>
                 {
@@ -109,17 +108,17 @@ namespace BoletoForBanrisul.IntegrationTests
                 })
                 .Build();
 
-            // Sequencial de propósito: o conversor serializa em MaxConcurrentConversions (1 por
-            // padrão), então um Task.WhenAll aqui só enfileiraria as chamadas no semáforo, manteria
-            // todos os HTMLs vivos ao mesmo tempo e reduziria as falhas possíveis a uma só exceção,
-            // sem dizer qual boleto quebrou. A concorrência tem teste próprio.
+            // Sequential on purpose: the converter serialises at MaxConcurrentConversions (1 by
+            // default), so a Task.WhenAll here would only queue the calls on the semaphore, keep every
+            // HTML alive at once, and collapse the possible failures into a single exception that does
+            // not say which boleto broke. Concurrency has its own test.
             var pdfResults = new byte[boletos.Count][];
 
             for (int i = 0; i < boletos.Count; i++)
             {
                 pdfResults[i] = await report.PrintAsync(boletos[i]);
 
-                // Grava antes de comparar: se a comparação falhar, os PDFs do caso estão no disco.
+                // Written before comparing: if the comparison fails, the case's PDFs are on disk.
                 await _artifacts.WriteAsync($"boleto_test_{i + 1}.pdf", pdfResults[i]);
             }
 
@@ -127,8 +126,8 @@ namespace BoletoForBanrisul.IntegrationTests
 
             Assert.All(pdfResults, pdf => Assert.NotEmpty(pdf));
 
-            // Hash em vez de comparar todos os pares: a versão O(n²) percorria 4950 pares de arrays
-            // de dezenas de KB elemento a elemento, pelo comparador de coleções do xunit.
+            // Hashing rather than comparing every pair: the O(n²) form would walk 4950 pairs of
+            // multi-KB arrays element by element, through xunit's collection comparer.
             var duplicates = pdfResults
                 .Select((pdf, index) => (Hash: Convert.ToHexString(SHA256.HashData(pdf)), Number: index + 1))
                 .GroupBy(entry => entry.Hash)
@@ -138,8 +137,8 @@ namespace BoletoForBanrisul.IntegrationTests
 
             Assert.True(duplicates.Length == 0, $"Boletos com PDF idêntico: {string.Join(" | ", duplicates)}.");
 
-            // Cada conversão usa um profile descartável, apagado ao final. Profile que sobra aqui
-            // enche o disco em produção.
+            // Every conversion uses a disposable profile, deleted at the end. A profile left over here
+            // fills the disk in production.
             Assert.Empty(ProfilesLeakedSince(profilesBefore));
         }
 
@@ -155,9 +154,8 @@ namespace BoletoForBanrisul.IntegrationTests
                 })
                 .Build();
 
-            // O que o Task.WhenAll do teste acima aparentava exercitar, com o número de chamadas
-            // certo: chamadores simultâneos contra um conversor de uma conversão por vez. Quatro
-            // bastam para haver disputa pelo semáforo; cem só somavam tempo de Chromium.
+            // Simultaneous callers against a converter that runs one conversion at a time. Four are
+            // enough to contend for the semaphore; a hundred would only add Chromium time.
             var pdfs = await Task.WhenAll(Enumerable.Range(1, 4).Select(i =>
             {
                 var boleto = BoletoGenerator.GenerateBoleto1();
@@ -170,39 +168,329 @@ namespace BoletoForBanrisul.IntegrationTests
             Assert.Empty(ProfilesLeakedSince(profilesBefore));
         }
 
+        /// <summary>
+        /// Cancels a conversion with Chromium provably up.
+        /// </summary>
+        /// <remarks>
+        /// The converter is called directly, not through <c>BoletoReport</c>, and cancellation only
+        /// fires once Chromium itself has written to the profile. Going through the report and
+        /// cancelling on a timer proves nothing: the deadline can expire while generating the barcode
+        /// or compiling the Razor template, and the cancellation gets observed at the converter's front
+        /// door without a browser ever starting.
+        /// </remarks>
         [IntegrationFact]
         public async Task Should_Abort_Conversion_When_Cancelled()
         {
             var profilesBefore = ExistingProfiles();
 
-            using var report = new BoletoReportBuilder()
-                .Configure((PrintSettings options) =>
-                {
-                    options.Beneficiary = new BeneficiarySettings { Name = "EMPRESA TESTE", CpfCnpj = "12345678901123" };
-                })
-                .Build();
+            using var converter = new ChromiumHtmlToPdfConverter(settings =>
+            {
+                // A status that is never set, with generous deadlines on both sides: the conversion
+                // hangs past startup, and nothing but the cancellation can end it.
+                settings.WaitForWindowStatus = "este-status-nunca-vai-acontecer";
+                settings.WaitForWindowStatusTimeout = (int)TimeSpan.FromMinutes(5).TotalMilliseconds;
+                settings.ConversionTimeout = TimeSpan.FromMinutes(5);
+                settings.HardTimeoutGrace = TimeSpan.FromMinutes(5);
+            });
 
-            using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(200));
+            using var cts = new CancellationTokenSource();
+
+            var conversion = converter.ConvertToPdfAsync("<html><body>boleto</body></html>", cts.Token);
+
+            var profile = await WaitForALiveProfileAsync(profilesBefore, TimeSpan.FromSeconds(30));
+
+            Assert.True(profile != null,
+                "O Chromium não chegou a escrever no profile em 30s: o teste cancelaria antes de haver navegador, que é exatamente o furo que ele existe para cobrir.");
 
             var stopwatch = Stopwatch.StartNew();
 
-            await Assert.ThrowsAnyAsync<OperationCanceledException>(
-                () => report.PrintAsync(BoletoGenerator.GenerateBoleto1(), cts.Token));
+            cts.Cancel();
+
+            var exception = await Assert.ThrowsAnyAsync<OperationCanceledException>(() => conversion);
 
             stopwatch.Stop();
 
-            // O ponto do cancelamento é não esperar o timeout inteiro da conversão.
-            Assert.True(stopwatch.Elapsed < TimeSpan.FromSeconds(30), $"O cancelamento levou {stopwatch.Elapsed}.");
+            _output.WriteLine($"Cancelamento observado em {stopwatch.Elapsed} (profile {Path.GetFileName(profile)}).");
+
+            // The caller has to recognise its own token in the exception, not the internal deadline
+            // token, which means nothing to whoever called.
+            Assert.Equal(cts.Token, exception.CancellationToken);
+
+            // The library gives Chromium up to 2s to close on its own before killing it, and on the
+            // netstandard2.0 branch that wait blocks. Beyond that, cancellation is immediate.
+            Assert.True(stopwatch.Elapsed < TimeSpan.FromSeconds(15), $"O cancelamento levou {stopwatch.Elapsed}.");
+
+            Assert.False(Directory.Exists(profile), "O profile da conversão cancelada não foi removido.");
+            Assert.Empty(ProfilesLeakedSince(profilesBefore));
+
+            AssertNoBrowserSurvived(converter);
+        }
+
+        /// <summary>
+        /// A browser timeout reaches the caller as <see cref="TimeoutException"/>.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// The case cannot be recognised from the library's exception type: it returns an empty string
+        /// when its own token fires, and what surfaces is a <c>ConversionException</c> just like a
+        /// content error would produce. That is why the converter arms the budget on its own token, and
+        /// that behaviour is what this test pins. Classified any other way it would come out as
+        /// <c>PdfConversionException</c>, which the documented policy calls retryable - sending the
+        /// caller back at a browser that has just wedged.
+        /// </para>
+        /// <para>
+        /// The browser is held by a <c>window.status</c> that never arrives, rather than by a huge
+        /// document: the library observes the token in that loop, so the budget expires exactly where
+        /// it should, with no dependency on machine speed or document size.
+        /// </para>
+        /// </remarks>
+        [IntegrationFact]
+        public async Task Should_Report_A_Browser_Timeout_As_TimeoutException()
+        {
+            var profilesBefore = ExistingProfiles();
+
+            using var converter = new ChromiumHtmlToPdfConverter(settings =>
+            {
+                // The conversion hangs past startup, waiting for a status that never comes.
+                settings.WaitForWindowStatus = "este-status-nunca-vai-acontecer";
+                settings.WaitForWindowStatusTimeout = (int)TimeSpan.FromMinutes(5).TotalMilliseconds;
+
+                // Long enough for the browser to start and be observed, short enough to keep the test
+                // quick. It runs out during the status wait.
+                settings.ConversionTimeout = TimeSpan.FromSeconds(10);
+
+                // A wide grace on purpose: the hard deadline must not be what fires, or the test would
+                // pass through the wrong path.
+                settings.HardTimeoutGrace = TimeSpan.FromMinutes(2);
+            });
+
+            var stopwatch = Stopwatch.StartNew();
+
+            var conversion = converter.ConvertToPdfAsync("<html><body>boleto</body></html>");
+
+            // Before any assertion about the timeout, prove there was a browser: without this, a
+            // deadline expiring before startup would sail through this test without exercising
+            // anything.
+            var profile = await WaitForALiveProfileAsync(profilesBefore, TimeSpan.FromSeconds(30));
+
+            Assert.True(profile != null,
+                "O Chromium não chegou a escrever no profile: o orçamento venceria sem navegador de pé, e o teste não provaria nada.");
+
+            var exception = await Assert.ThrowsAsync<TimeoutException>(() => conversion);
+
+            stopwatch.Stop();
+
+            _output.WriteLine($"Timeout em {stopwatch.Elapsed}, relatado pela biblioteca como {exception.InnerException?.GetType().Name ?? "nenhuma exceção interna"}.");
+
+            // Not the hard deadline in disguise: that one would only expire two minutes later.
+            Assert.True(stopwatch.Elapsed < TimeSpan.FromSeconds(60), $"A conversão levou {stopwatch.Elapsed}, tempo demais para ter sido o orçamento de 10s.");
+
+            AssertNoBrowserSurvived(converter);
+
+            Assert.False(Directory.Exists(profile), "O profile da conversão que estourou o prazo não foi removido.");
             Assert.Empty(ProfilesLeakedSince(profilesBefore));
         }
 
         /// <summary>
-        /// Profiles que apareceram depois de <paramref name="before"/> e não foram removidos.
+        /// An aggressive sweep must not delete the profile of a conversion in progress.
         /// </summary>
         /// <remarks>
-        /// O assert é sobre o que a conversão deixou para trás, não sobre o conteúdo da raiz: ela
-        /// fica no diretório temporário da máquina e, por contrato, pode conter profiles de outros
-        /// processos e de execuções anteriores.
+        /// With a zero max age the date criterion treats everything that exists as an orphan. What
+        /// holds the removal back is the owner lock the conversion keeps open - and only a real
+        /// Chromium, holding the directory, exercises that end to end.
+        /// </remarks>
+        [IntegrationFact]
+        public async Task Should_Not_Delete_A_Live_Profile_During_A_Sweep()
+        {
+            using var converter = new ChromiumHtmlToPdfConverter(settings =>
+            {
+                settings.OrphanProfileMaxAge = TimeSpan.Zero;
+                settings.OrphanCleanupInterval = TimeSpan.Zero;
+            });
+
+            var conversion = converter.ConvertToPdfAsync("<html><body>boleto</body></html>");
+
+            // Sweeps from outside, in parallel, at the most aggressive value the public API accepts.
+            while (!conversion.IsCompleted)
+            {
+                ChromiumHtmlToPdfConverter.CleanupOrphanedProfiles(TimeSpan.Zero);
+
+                await Task.Delay(50);
+            }
+
+            var pdf = await conversion;
+
+            Assert.NotEmpty(pdf);
+            Assert.StartsWith("%PDF-", System.Text.Encoding.ASCII.GetString(pdf, 0, 5));
+        }
+
+        /// <summary>
+        /// A stalled startup becomes a <see cref="TimeoutException"/>, without leaving a browser up.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// Startup failure has two contracts, and this test pins one of them. A startup that fails
+        /// <em>outright</em> - missing executable - arrives before the budget expires and comes out
+        /// retryable, as <c>PdfConversionException</c>; that case belongs to the unit test
+        /// <c>ConvertToPdfAsync_WhenTheConverterCannotStart_LeavesNoProfileBehind</c>. A startup that
+        /// <em>stalls</em>, as here, consumes the whole budget and comes out as
+        /// <see cref="TimeoutException"/>.
+        /// </para>
+        /// <para>
+        /// As for the process: when the library gives up on the DevTools handshake it throws and leaves
+        /// Chromium alive - the conversion's <c>finally</c> is the only thing that collects it. The
+        /// assertion is on the process, not on the directory being removed. A removed directory does
+        /// <em>not</em> prove the process ended: on Linux <c>unlink</c> removes the entry even with
+        /// descriptors open, so the removal would succeed with the browser running. On Windows the
+        /// inference happens to hold, because open handles block the removal - and an accident is not a
+        /// contract.
+        /// </para>
+        /// </remarks>
+        [IntegrationFact]
+        public async Task Should_Report_A_Stalled_Startup_As_TimeoutException_Without_Leaving_A_Browser()
+        {
+            var profilesBefore = ExistingProfiles();
+
+            using var converter = new ChromiumHtmlToPdfConverter(settings =>
+            {
+                // An impossible debugging port: the process starts, the handshake never completes.
+                settings.ChromiumArguments.Add("--remote-debugging-port=-1");
+                settings.ConversionTimeout = TimeSpan.FromSeconds(5);
+                settings.HardTimeoutGrace = TimeSpan.FromSeconds(30);
+            });
+
+            var exception = await Assert.ThrowsAsync<TimeoutException>(
+                () => converter.ConvertToPdfAsync("<html><body>boleto</body></html>"));
+
+            _output.WriteLine($"A partida travada virou {exception.GetType().Name} / {exception.InnerException?.GetType().Name}.");
+
+            // Here the identity is required, not merely checked when present: the handshake never
+            // completes, so Chromium is provably up at the moment of disposal, which is when the handle
+            // records the process. A null identity would mean nothing started, and the test would not
+            // have exercised the collection it exists to cover.
+            Assert.True(converter.LastObservedBrowserProcess != null,
+                "Nenhum processo de navegador foi registrado: a partida falhou antes de subir o Chromium, e o teste não prova nada sobre o recolhimento.");
+
+            AssertNoBrowserSurvived(converter);
+
+            // With a wait rather than an immediate assert: the converter retries the removal for a few
+            // hundred milliseconds and then gives up, leaving the rest to the sweep - by design, since
+            // losing the cleanup must not cost the PDF. What must not happen is the directory staying
+            // stuck indefinitely.
+            var removed = await WaitUntilAsync(
+                () =>
+                {
+                    ChromiumHtmlToPdfConverter.CleanupOrphanedProfiles(TimeSpan.Zero);
+
+                    return ProfilesLeakedSince(profilesBefore).Length == 0;
+                },
+                TimeSpan.FromSeconds(30));
+
+            Assert.True(removed, "O profile da partida travada continuou preso.");
+        }
+
+        /// <summary>
+        /// Asserts that no browser process outlived the conversion.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// Straight at the process, through the pid + start time pair the converter records - not
+        /// through the directory being removed, which on Linux would succeed with the browser still
+        /// running.
+        /// </para>
+        /// <para>
+        /// A null identity is a good result, not a missing test: it means Chromium had already ended
+        /// before the conversion was torn down, the usual outcome on cancellation. What proves a
+        /// browser really ran is the wait for a live profile, which the cancellation and timeout tests
+        /// do before any assertion.
+        /// </para>
+        /// <para>
+        /// This measures the invariant, not who deserves the credit: with the converter's safety net
+        /// disabled it still passes, because in these scenarios the library's own disposal already
+        /// kills the main process. The net is there for what these tests cannot reach - child processes
+        /// and kills that have no effect.
+        /// </para>
+        /// </remarks>
+        private static void AssertNoBrowserSurvived(ChromiumHtmlToPdfConverter converter)
+        {
+            var browser = converter.LastObservedBrowserProcess;
+
+            if (browser == null)
+                return;
+
+            try
+            {
+                using var process = Process.GetProcessById(browser.Value.Id);
+
+                // A number recycled by some other process also means ours ended.
+                if (process.StartTime != browser.Value.StartTime)
+                    return;
+
+                Assert.True(process.HasExited, $"O Chromium (ProcessId={browser.Value.Id}) continuou vivo depois da conversão.");
+            }
+            catch (ArgumentException)
+            {
+                // No process with that number: it ended, which is the expected outcome.
+            }
+        }
+
+        private static async Task<bool> WaitUntilAsync(Func<bool> condition, TimeSpan timeout)
+        {
+            var deadline = DateTime.UtcNow + timeout;
+
+            while (DateTime.UtcNow < deadline)
+            {
+                if (condition())
+                    return true;
+
+                await Task.Delay(200);
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// Waits until Chromium has written into this conversion's profile.
+        /// </summary>
+        /// <remarks>
+        /// The synchronisation point is the directory's contents, not a log line from the library: the
+        /// converter creates the profile and its own lock file, so any entry beyond that file can only
+        /// have come from the browser.
+        /// </remarks>
+        private static async Task<string?> WaitForALiveProfileAsync(string[] before, TimeSpan timeout)
+        {
+            var deadline = DateTime.UtcNow + timeout;
+
+            while (DateTime.UtcNow < deadline)
+            {
+                foreach (var profile in ProfilesLeakedSince(before))
+                {
+                    try
+                    {
+                        if (Directory.EnumerateFileSystemEntries(profile)
+                                     .Any(entry => Path.GetFileName(entry) != ChromiumHtmlToPdfConverter.OwnerLockFileName))
+                            return profile;
+                    }
+                    catch (DirectoryNotFoundException)
+                    {
+                        // The orphan sweep may have passed through; not the profile we are after.
+                    }
+                }
+
+                await Task.Delay(50);
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// Profiles that appeared after <paramref name="before"/> and were not removed.
+        /// </summary>
+        /// <remarks>
+        /// The assertion is about what the conversion left behind, not about the root's contents: the
+        /// root lives in the machine's temp directory and, by contract, may hold profiles from other
+        /// processes and other runs. Hence the pid filter too - a neighbouring process's profile
+        /// appearing between two snapshots is not a leak from this test.
         /// </remarks>
         private static string[] ProfilesLeakedSince(string[] before)
         {
@@ -213,7 +501,14 @@ namespace BoletoForBanrisul.IntegrationTests
         {
             var root = ChromiumHtmlToPdfConverter.ProfilesRootDirectory;
 
-            return Directory.Exists(root) ? Directory.GetDirectories(root) : [];
+            if (!Directory.Exists(root))
+                return [];
+
+            var ownedByThisProcess = $"p{Environment.ProcessId}-";
+
+            return Directory.GetDirectories(root)
+                            .Where(directory => Path.GetFileName(directory).StartsWith(ownedByThisProcess, StringComparison.Ordinal))
+                            .ToArray();
         }
     }
 }
