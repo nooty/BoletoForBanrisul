@@ -62,12 +62,13 @@ The component uses the ChromiumHtmlToPdfLib library to generate boleto PDFs via 
 
   <ItemGroup>
     <InternalsVisibleTo Include="BoletoForBanrisul.Report.Tests" />
+    <InternalsVisibleTo Include="BoletoForBanrisul.IntegrationTests" />
   </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="8.0.2" />
-    <!-- Transitivo pelo ChromeHtmlToPdf, mas explicitado porque ILogger agora faz parte da API
-         pública, via ChromiumConverterSettings.Logger. -->
+    <!-- Transitive through ChromeHtmlToPdf, but declared explicitly because ILogger is part of the
+         public API, via ChromiumConverterSettings.Logger. -->
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="8.0.2" />
     <PackageReference Include="ChromeHtmlToPdf" Version="4.2.10" />
     <PackageReference Include="RazorLight" Version="2.3.1" />
