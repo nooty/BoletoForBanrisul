@@ -8,21 +8,32 @@ using System.Threading;
 namespace BoletoForBanrisul.Report.Utils
 {
     /// <summary>
-    /// Configurações do <see cref="ChromiumHtmlToPdfConverter"/>.
+    /// Settings for <see cref="ChromiumHtmlToPdfConverter"/>.
     /// </summary>
     /// <remarks>
-    /// Os padrões são conservadores de propósito: profile descartável por conversão, sem cache,
-    /// timeout curto e pré-checagem de disco.
+    /// The defaults are deliberately conservative: a disposable profile per conversion, no cache, a
+    /// short timeout and a disk pre-check. The converter copies these settings at construction, so
+    /// changing the object afterwards has no effect on a converter already built.
     /// </remarks>
     public class ChromiumConverterSettings
     {
+        // The timeout becomes an int of milliseconds in the library call, and the hard deadline becomes
+        // a CancelAfter: both overflow above int.MaxValue ms (~24.8 days). The ceiling is validated in
+        // parts so that not even the sum itself can overflow the TimeSpan.
+        private static readonly TimeSpan MaximumDeadline = TimeSpan.FromMilliseconds(int.MaxValue);
+
+        // The library refuses conversionTimeout <= 1 ms, but the useful floor is elsewhere: below one
+        // second the value can only produce failure, because Chromium spends that same budget starting
+        // up and completing the DevTools handshake.
+        private static readonly TimeSpan MinimumConversionTimeout = TimeSpan.FromSeconds(1);
+
         /// <summary>
-        /// Argumentos passados ao Chromium. Já vem preenchida com os padrões; adicione ou remova
-        /// itens em vez de substituir a lista.
+        /// Arguments passed to Chromium. Comes pre-filled with the defaults; add or remove items
+        /// rather than replacing the list.
         /// </summary>
         /// <remarks>
-        /// Os cinco primeiros são os necessários para rodar headless em container; os demais calam
-        /// o ruído de rede, GCM e atualização de componentes, típico de um Linux sem sessão gráfica.
+        /// The first five are what headless needs in a container; the rest silence network, GCM and
+        /// component-update noise, typical of a Linux box with no graphical session.
         /// </remarks>
         public IList<string> ChromiumArguments { get; } = new List<string>
         {
@@ -40,131 +51,214 @@ namespace BoletoForBanrisul.Report.Utils
         };
 
         /// <summary>
-        /// Tempo máximo que o Chromium tem para concluir uma conversão. Padrão: 2 minutos.
+        /// Time budget for a whole conversion. Default: 2 minutes.
         /// </summary>
+        /// <remarks>
+        /// Counted end to end by the converter itself, covering startup, navigation and printing. The
+        /// value is also handed to the library, which applies it to the DevTools handshake, but the
+        /// count that matters is the converter's: the library's own clock starts only after navigation.
+        /// </remarks>
         public TimeSpan ConversionTimeout { get; set; } = TimeSpan.FromSeconds(120);
 
         /// <summary>
-        /// Folga adicional depois de <see cref="ConversionTimeout"/> antes de o conversor derrubar
-        /// o Chromium à força. Padrão: 30 segundos.
+        /// Extra grace after <see cref="ConversionTimeout"/> before the converter force-kills Chromium.
+        /// Default: 30 seconds.
         /// </summary>
         /// <remarks>
-        /// Rede de segurança para quando o Chromium pendura num nível que não devolve o
-        /// <c>await</c>. Nesse caso o <see cref="ConversionTimeout"/> não tem efeito, porque não há
-        /// ninguém observando o cancelamento, e só matar o processo resolve.
+        /// A safety net for when Chromium hangs at a level that never returns the <c>await</c>. There
+        /// <see cref="ConversionTimeout"/> has no effect, because nobody is observing the cancellation,
+        /// and only killing the process helps.
         /// </remarks>
         public TimeSpan HardTimeoutGrace { get; set; } = TimeSpan.FromSeconds(30);
 
         /// <summary>
-        /// Diretório de profile do Chromium (<c>--user-data-dir</c>). Quando nulo ou vazio (padrão),
-        /// cada conversão usa um profile próprio em diretório temporário, apagado ao final.
+        /// Chromium profile directory (<c>--user-data-dir</c>). Null or empty (the default) gives each
+        /// conversion its own profile under a temporary directory, deleted when it ends.
         /// </summary>
         /// <remarks>
-        /// Preenchido, todas as conversões passam a compartilhar o mesmo profile: ele cresce sem
-        /// limite e, se for corrompido por um Chromium morto no meio de uma conversão, continua
-        /// quebrando as conversões seguintes. Use apenas com um motivo concreto.
+        /// Set it, and every conversion shares one profile: it grows without bound and, if corrupted by
+        /// a Chromium that died mid-conversion, keeps breaking the conversions that follow. Use only
+        /// with a concrete reason.
         /// </remarks>
         public string? UserProfileDirectory { get; set; }
 
         /// <summary>
-        /// Habilita o cache em disco do Chromium. Padrão: <c>false</c>.
+        /// Enables Chromium's on-disk cache. Default: <c>false</c>.
         /// </summary>
         public bool UseCache { get; set; } = false;
 
         /// <summary>
-        /// Espaço livre mínimo, em megabytes, exigido antes de subir o Chromium. Padrão: 500.
-        /// Use <c>0</c> para desligar a checagem.
+        /// Minimum free space, in megabytes, required before launching Chromium. Default: 500. Use
+        /// <c>0</c> to turn the check off.
         /// </summary>
         /// <remarks>
-        /// Abaixo do limite a conversão falha imediatamente com
-        /// <see cref="Exceptions.InsufficientDiskSpaceException"/>. No dobro do limite é emitido um
-        /// aviso, para dar tempo de reagir antes de o disco acabar de fato.
+        /// Below the limit the conversion fails immediately with
+        /// <see cref="Exceptions.InsufficientDiskSpaceException"/>. At twice the limit a warning is
+        /// logged, to leave time to react before the disk actually runs out.
         /// </remarks>
         public int MinimumFreeDiskMegabytes { get; set; } = 500;
 
         /// <summary>
-        /// Quantidade de conversões simultâneas permitidas por instância do conversor. Padrão: 1.
+        /// Conversions allowed to run at the same time per converter instance. Default: 1.
         /// </summary>
         /// <remarks>
-        /// Cada conversão simultânea é um processo Chromium a mais, com o custo correspondente de
-        /// memória e disco. Aumente só depois de medir.
+        /// Each concurrent conversion is one more Chromium process, with the matching cost in memory
+        /// and disk. Raise it only after measuring.
         /// </remarks>
         public int MaxConcurrentConversions { get; set; } = 1;
 
         /// <summary>
-        /// Caminho do executável do Chrome/Chromium. Quando nulo, a localização é automática.
+        /// Path to the Chrome/Chromium executable. Null means locate it automatically.
         /// </summary>
         public string? ChromiumExecutablePath { get; set; }
 
         /// <summary>
-        /// Navegador a ser usado. Padrão: <see cref="ChromiumHtmlToPdfLib.Enums.Browser.Chrome"/>.
+        /// Browser to use. Default: <see cref="ChromiumHtmlToPdfLib.Enums.Browser.Chrome"/>.
         /// </summary>
         public Browser Browser { get; set; } = Browser.Chrome;
 
         /// <summary>
-        /// Configurações de página (papel, margens, orientação) usadas na impressão.
+        /// Page settings (paper, margins, orientation) used when printing.
         /// </summary>
         public PageSettings PageSettings { get; set; } = new PageSettings();
 
         /// <summary>
-        /// Valor de <c>window.status</c> a ser aguardado antes de imprimir. Nulo (padrão) não espera.
+        /// Value of <c>window.status</c> to wait for before printing. Null (the default) does not wait.
         /// </summary>
         public string? WaitForWindowStatus { get; set; }
 
         /// <summary>
-        /// Tempo máximo, em milissegundos, de espera por <see cref="WaitForWindowStatus"/>. Padrão: 60000.
+        /// How long, in milliseconds, to wait for <see cref="WaitForWindowStatus"/>. Default: 60000.
         /// </summary>
         public int WaitForWindowStatusTimeout { get; set; } = 60000;
 
         /// <summary>
-        /// Tempo máximo, em milissegundos, de espera pelo carregamento de mídia. Nulo (padrão) usa o
-        /// comportamento da biblioteca.
+        /// How long, in milliseconds, to wait for media to load. Null (the default) uses the library's
+        /// behaviour.
         /// </summary>
         public int? MediaLoadTimeout { get; set; }
 
         /// <summary>
-        /// Logger opcional, repassado à biblioteca de conversão e usado pelo próprio conversor.
+        /// Optional logger, passed to the conversion library and used by the converter itself.
         /// </summary>
         /// <remarks>
-        /// Sem ele, uma conversão presa é indistinguível de uma conversão lenta. Vale a pena
-        /// configurar em qualquer ambiente não interativo.
+        /// Without it, a stuck conversion is indistinguishable from a slow one. Worth configuring in
+        /// any non-interactive environment.
         /// </remarks>
         public ILogger? Logger { get; set; }
 
         /// <summary>
-        /// Idade a partir da qual um profile temporário esquecido é considerado órfão e apagado.
-        /// Padrão: 1 hora.
+        /// Age at which a forgotten temporary profile counts as an orphan and is deleted. Default: 1
+        /// hour.
         /// </summary>
         /// <remarks>
-        /// Ao varrer sozinho, o conversor nunca usa um valor menor que
-        /// <see cref="ConversionTimeout"/> + <see cref="HardTimeoutGrace"/>: profile mais novo que o
-        /// deadline ainda pode pertencer a uma conversão em andamento. O piso vale pelas
-        /// configurações desta instância, e a raiz de profiles é compartilhada - um processo vizinho
-        /// com timeout maior depende deste valor para não ter o profile apagado no meio da conversão.
+        /// Age is the trigger, never the final authorisation: before deleting, the sweep confirms
+        /// through the owner lock that the profile has no live owner, and it is that lock which
+        /// protects a neighbouring process - including one configured with a longer deadline than this
+        /// instance's. When sweeping on its own the converter still never uses a value below
+        /// <see cref="ConversionTimeout"/> + <see cref="HardTimeoutGrace"/>, to cover profiles with no
+        /// lock file.
         /// </remarks>
         /// <seealso cref="ChromiumHtmlToPdfConverter.CleanupOrphanedProfiles(TimeSpan, ILogger)"/>
         public TimeSpan OrphanProfileMaxAge { get; set; } = TimeSpan.FromHours(1);
 
         /// <summary>
-        /// Intervalo mínimo entre duas varreduras de profiles órfãos no mesmo processo. Padrão: 1
-        /// hora. Use <see cref="Timeout.InfiniteTimeSpan"/> para varrer apenas uma vez por processo.
+        /// Minimum interval between two orphan sweeps in the same process. Default: 1 hour. Use
+        /// <see cref="Timeout.InfiniteTimeSpan"/> to sweep only once per process.
         /// </summary>
         /// <remarks>
-        /// A varredura é disparada pela conversão, não por um timer: profile órfão só nasce de uma
-        /// conversão, então um processo ocioso não acumula nada para limpar.
+        /// The sweep is triggered by a conversion rather than a timer: an orphaned profile is only ever
+        /// born of a conversion, so an idle process accumulates nothing to clean.
         /// </remarks>
         public TimeSpan OrphanCleanupInterval { get; set; } = TimeSpan.FromHours(1);
 
         /// <summary>
-        /// Valida os valores configurados. Chamado pelo construtor do conversor.
+        /// <see cref="ConversionTimeout"/> in milliseconds, in the shape the library expects.
+        /// </summary>
+        /// <remarks>
+        /// The cast to <see cref="int"/> is safe because <see cref="Validate"/> refuses any value above
+        /// <c>int.MaxValue</c> milliseconds.
+        /// </remarks>
+        internal int ConversionTimeoutMilliseconds => (int)ConversionTimeout.TotalMilliseconds;
+
+        /// <summary>
+        /// The conversion's hard deadline: what kills Chromium when even cancellation goes unobserved.
+        /// </summary>
+        /// <remarks>
+        /// It sits past <see cref="ConversionTimeout"/> because it covers something else. The budget
+        /// cancels the conversion and counts on somebody observing the token; this sum is the time
+        /// allowed for that observation to happen.
+        /// </remarks>
+        internal TimeSpan HardDeadline => ConversionTimeout + HardTimeoutGrace;
+
+        /// <summary>
+        /// An independent copy of these settings.
+        /// </summary>
+        /// <remarks>
+        /// The converter freezes its settings at construction and never reads the caller's object
+        /// again. Without that, everything <see cref="Validate"/> guarantees could be undone on the
+        /// next line - and worse, <see cref="MaxConcurrentConversions"/> becomes the semaphore in the
+        /// constructor and cannot change, so a later edit would let validation see a coherent
+        /// configuration while the real capacity was another, such as a shared profile serving two
+        /// simultaneous conversions.
+        /// <see cref="PageSettings"/> is cloned by the library's own type, which implements
+        /// <see cref="ICloneable"/>: copying it by hand here would leave out <c>PaperFormat</c>, whose
+        /// setter is private, and would silently drop any property the library adds.
+        /// <see cref="Logger"/> is carried by reference on purpose - it is a shared service, not a
+        /// configuration value.
+        /// </remarks>
+        internal ChromiumConverterSettings Clone()
+        {
+            var clone = new ChromiumConverterSettings
+            {
+                ConversionTimeout = ConversionTimeout,
+                HardTimeoutGrace = HardTimeoutGrace,
+                UserProfileDirectory = UserProfileDirectory,
+                UseCache = UseCache,
+                MinimumFreeDiskMegabytes = MinimumFreeDiskMegabytes,
+                MaxConcurrentConversions = MaxConcurrentConversions,
+                ChromiumExecutablePath = ChromiumExecutablePath,
+                Browser = Browser,
+
+                // Left null when null: what complains is Validate, applied right after over this copy -
+                // and it is the copy the validation has to hold for.
+                PageSettings = PageSettings == null ? null! : (PageSettings)PageSettings.Clone(),
+
+                WaitForWindowStatus = WaitForWindowStatus,
+                WaitForWindowStatusTimeout = WaitForWindowStatusTimeout,
+                MediaLoadTimeout = MediaLoadTimeout,
+                Logger = Logger,
+                OrphanProfileMaxAge = OrphanProfileMaxAge,
+                OrphanCleanupInterval = OrphanCleanupInterval
+            };
+
+            // Read-only at the declaration, so it is filled in by hand rather than assigned.
+            clone.ChromiumArguments.Clear();
+
+            foreach (var argument in ChromiumArguments)
+            {
+                clone.ChromiumArguments.Add(argument);
+            }
+
+            return clone;
+        }
+
+        /// <summary>
+        /// Validates the configured values. Called by the converter's constructor.
         /// </summary>
         internal void Validate()
         {
-            if (ConversionTimeout <= TimeSpan.Zero)
-                throw new ArgumentOutOfRangeException(nameof(ConversionTimeout), ConversionTimeout, "O timeout de conversão deve ser maior que zero.");
+            if (ConversionTimeout < MinimumConversionTimeout)
+                throw new ArgumentOutOfRangeException(nameof(ConversionTimeout), ConversionTimeout, $"O timeout de conversão deve ser de pelo menos {MinimumConversionTimeout.TotalSeconds:0.#}s.");
 
-            if (HardTimeoutGrace < TimeSpan.Zero)
-                throw new ArgumentOutOfRangeException(nameof(HardTimeoutGrace), HardTimeoutGrace, "A folga do deadline não pode ser negativa.");
+            if (HardTimeoutGrace < TimeSpan.Zero || HardTimeoutGrace > MaximumDeadline)
+                throw new ArgumentOutOfRangeException(nameof(HardTimeoutGrace), HardTimeoutGrace, $"A folga do deadline deve ficar entre zero e {MaximumDeadline.TotalDays:0.#} dias.");
+
+            // Subtraction rather than addition: with the grace already inside the range,
+            // MaximumDeadline - HardTimeoutGrace cannot overflow - whereas ConversionTimeout +
+            // HardTimeoutGrace would overflow the TimeSpan itself before any comparison got to run.
+            if (ConversionTimeout > MaximumDeadline - HardTimeoutGrace)
+                throw new ArgumentOutOfRangeException(nameof(ConversionTimeout), ConversionTimeout, $"ConversionTimeout + HardTimeoutGrace não pode passar de {MaximumDeadline.TotalDays:0.#} dias.");
 
             if (WaitForWindowStatusTimeout < 0)
                 throw new ArgumentOutOfRangeException(nameof(WaitForWindowStatusTimeout), WaitForWindowStatusTimeout, "O timeout de espera por window.status não pode ser negativo.");
@@ -183,6 +277,16 @@ namespace BoletoForBanrisul.Report.Utils
 
             if (OrphanCleanupInterval < TimeSpan.Zero && OrphanCleanupInterval != Timeout.InfiniteTimeSpan)
                 throw new ArgumentOutOfRangeException(nameof(OrphanCleanupInterval), OrphanCleanupInterval, "O intervalo de limpeza de órfãos não pode ser negativo.");
+
+            // One --user-data-dir cannot back two Chromium processes at once: the second either dies on
+            // the SingletonLock or hands the work to the first and exits, and the conversion comes back
+            // empty with no error at all. It is the combination that is invalid, not either value.
+            if (!string.IsNullOrEmpty(UserProfileDirectory) && MaxConcurrentConversions > 1)
+                throw new ArgumentException(
+                    "UserProfileDirectory e MaxConcurrentConversions > 1 são incompatíveis: um profile compartilhado não " +
+                    "suporta duas instâncias do Chromium ao mesmo tempo. Deixe MaxConcurrentConversions em 1 ou volte ao " +
+                    "profile descartável.",
+                    nameof(MaxConcurrentConversions));
 
             if (PageSettings == null)
                 throw new ArgumentNullException(nameof(PageSettings), "As configurações de página não podem ser nulas.");
