@@ -90,7 +90,7 @@ using var report = new BoletoReportBuilder()
 | Exceção | Quando | Retentar? |
 | --- | --- | --- |
 | `InsufficientDiskSpaceException` | Espaço livre abaixo de `MinimumFreeDiskMegabytes` | Não, enquanto o disco não for liberado |
-| `TimeoutException` | A conversão estourou `ConversionTimeout` + `HardTimeoutGrace` | Só com alguma tolerância; indica navegador travado |
+| `TimeoutException` | A conversão estourou o prazo — o `ConversionTimeout` do navegador ou o deadline duro `ConversionTimeout + HardTimeoutGrace` | Só com alguma tolerância; indica navegador travado |
 | `OperationCanceledException` | O `CancellationToken` do chamador foi cancelado | Não |
 | `PdfConversionException` | Qualquer outra falha da conversão (causa em `InnerException`) | Sim |
 
@@ -98,14 +98,44 @@ Os tipos vivem em `BoletoForBanrisul.Report.Exceptions`. A distinção existe pa
 retry não fique em `Handle<Exception>`, que retentaria também cancelamento e disco cheio —
 multiplicando o tempo preso justamente nos casos em que retentar não resolve.
 
+São dois prazos, com papéis diferentes. O `ConversionTimeout` é o orçamento da conversão, contado de
+ponta a ponta pelo próprio conversor — partida, navegação e impressão. Vencido o orçamento, a conversão
+é cancelada e o `HardTimeoutGrace` é o tempo que se dá para esse cancelamento ser observado; passado
+ele, o navegador travou num nível que não devolve o `await` e o processo é derrubado à força. Estourar
+qualquer um dos dois resulta em `TimeoutException`.
+
+O orçamento é contado aqui, e não delegado ao navegador, por dois motivos: o prazo interno da
+biblioteca só começa depois da navegação, deixando-a descoberta, e quando ele vence a biblioteca o
+relata de um jeito indistinguível de um erro de conteúdo — o que torna impossível classificar um
+timeout pelo tipo da exceção recebida.
+
+Um `ConversionTimeout` abaixo de 1 segundo é recusado na construção: o navegador não termina de subir
+nesse tempo, então o valor só produziria falha. As configurações também são copiadas na construção —
+alterar o objeto depois de criar o conversor não tem efeito. Para trocar de configuração, construa
+outro conversor.
+
 Cada conversão usa um profile descartável, apagado ao final. Como rede de segurança contra o que
 escapar disso — um processo morto no meio de uma conversão, um handle que não foi liberado a tempo —
 o conversor varre os profiles esquecidos sozinho: quando a última varredura passou de
 `OrphanCleanupInterval` (padrão 1 hora), a conversão seguinte dispara uma nova em background,
 apagando o que estiver parado há mais de `OrphanProfileMaxAge`. Quem dispara é a conversão e não um
 timer, porque profile órfão só nasce de uma conversão — um processo ocioso não acumula nada para
-limpar. Ao varrer sozinho, o conversor nunca considera órfão um profile mais novo que
-`ConversionTimeout + HardTimeoutGrace`: ele ainda pode pertencer a uma conversão em andamento.
+limpar.
+
+Ao final de cada conversão o conversor confirma que o processo do navegador terminou e, se ele tiver
+sobrevivido ao encerramento, o derruba junto com a árvore de subprocessos. Essa última parte depende do
+runtime: `Process.Kill(entireProcessTree)` existe do **.NET Core 3.0** em diante, e é o que o pacote
+usa quando disponível. Em runtimes mais antigos — incluindo .NET Framework, alcançável porque o pacote
+tem como alvo `netstandard2.0` — só o processo principal é encerrado. A biblioteca de conversão, por
+sua vez, nunca encerra a árvore, então um filho que sobreviva a um pai já morto fica fora do alcance de
+qualquer um dos dois.
+
+A idade, porém, é só o gatilho: quem autoriza a remoção é o lock de propriedade que cada conversão
+mantém aberto dentro do seu profile. Antes de apagar, a varredura tenta tomar esse lock, e desiste do
+diretório se ele ainda tiver dono. É o que permite compartilhar a raiz de profiles entre processos sem
+que um deles apague o `--user-data-dir` do outro no meio de uma conversão — inclusive quando o vizinho
+foi configurado com um deadline maior. Como rede adicional para os profiles que não têm lock, o
+conversor nunca considera órfão um profile mais novo que `ConversionTimeout + HardTimeoutGrace`.
 
 `ChromiumHtmlToPdfConverter.CleanupOrphanedProfiles(TimeSpan.FromHours(1))` continua público para uma
 varredura manual no start, útil depois de uma queda.
