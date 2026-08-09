@@ -86,6 +86,13 @@ namespace BoletoForBanrisul.Report
         public static RazorBoletoTemplateRenderer Default => _default.Value;
 
         /// <inheritdoc />
+        /// <remarks>
+        /// Cancellation only applies at the edges. RazorLight's <c>CompileRenderAsync</c> takes no
+        /// <see cref="CancellationToken"/>, so compiling the template - the expensive part, and only on
+        /// the first call for each key - runs to completion even after the token is cancelled. The
+        /// token is checked before and after it, so a cancellation does not go unnoticed, but an
+        /// immediate abort during the first render is not available.
+        /// </remarks>
         public async Task<string> RenderAsync(PrintViewModel viewModel, CancellationToken cancellationToken = default)
         {
             if (viewModel == null)
@@ -93,9 +100,15 @@ namespace BoletoForBanrisul.Report
 
             cancellationToken.ThrowIfCancellationRequested();
 
-            // Sem lock: o RazorTemplateCompiler já serializa a compilação por chave, e o cache de
-            // templates é um IMemoryCache.
-            return await _engine.CompileRenderAsync(_templateKey, viewModel).ConfigureAwait(false);
+            // No lock: RazorTemplateCompiler already serialises compilation per key, and the template
+            // cache is an IMemoryCache.
+            var html = await _engine.CompileRenderAsync(_templateKey, viewModel).ConfigureAwait(false);
+
+            // Again after the await: compilation does not observe the token, so without this second
+            // check a cancellation requested during it would only be noticed later, in the converter.
+            cancellationToken.ThrowIfCancellationRequested();
+
+            return html;
         }
     }
 }
