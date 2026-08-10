@@ -102,6 +102,30 @@ namespace BoletoForBanrisul.Client.Tests.Clients
             Assert.Contains(exception.Errors, e => e.MemberNames.Contains("Titulo.Pagador.Cep"));
         }
 
+        [Fact]
+        public async Task CreateBoletoAsync_IsSentExactlyOnce_AndIsNotRetried_OnATransientFailure()
+        {
+            // The regression this whole feature exists for. Registration is the one operation that creates a
+            // new resource on every send, and the API documents no idempotency guarantee - so if the bank
+            // registers the slip and the response is lost on the way back, a retry would register a second
+            // one. The transient failure has to surface to the caller instead, who can reconcile by
+            // SeuNumero before deciding to try again. Note this test also runs instantly: were the retry
+            // still in place it would sit through the production backoff.
+            var apiCalls = 0;
+            var (builder, stub) = StubClientFactory.CreateBoletoClientBuilder(_ =>
+            {
+                apiCalls++;
+                return JsonResponse(HttpStatusCode.ServiceUnavailable, "{\"ocorrencias\":[]}");
+            });
+
+            using var client = builder.Build();
+
+            await Assert.ThrowsAsync<ServiceUnavailableException>(() => client.CreateBoletoAsync(BoletoFactory.CreateValid()));
+
+            Assert.Equal(1, apiCalls);
+            Assert.Single(stub.ApiRequests());
+        }
+
         // --- GetBoletoAsync: GET, no request-mode header, tipo_id query building, id escaping. ---
 
         [Theory]
@@ -214,6 +238,29 @@ namespace BoletoForBanrisul.Client.Tests.Clients
             Assert.EndsWith("/0000038806/baixar", sent.RequestUri!.AbsolutePath);
             Assert.Equal("0010000001088", Assert.Single(sent.Headers.GetValues("bergs-beneficiario")));
             Assert.Equal("P", Assert.Single(sent.Headers.GetValues("bergs-ambiente")));
+        }
+
+        [Fact]
+        public async Task CancelBoletoAsync_IsRetried_OnATransientFailure()
+        {
+            // The counterpart to the registration test above: dropping the retry for the registration POST
+            // must not have leaked into the other operations. Cancelling is a POST too, but it is a state
+            // transition on a slip that already exists - repeating it lands on the same final state - so
+            // BoletoClient marks it retry-safe. This one pays the real production backoff (~1s), hence the
+            // single retry rather than a sequence.
+            var apiCalls = 0;
+            var (builder, stub) = StubClientFactory.CreateBoletoClientBuilder(_ =>
+            {
+                apiCalls++;
+                return apiCalls == 1
+                    ? JsonResponse(HttpStatusCode.ServiceUnavailable, "{\"ocorrencias\":[]}")
+                    : JsonResponse(HttpStatusCode.OK, MinimalOperationResponseJson);
+            });
+
+            using var client = builder.Build();
+            await client.CancelBoletoAsync("0000038806");
+
+            Assert.Equal(2, apiCalls);
         }
 
         // --- IssueBoletoAsync: GET, request-mode header present, base64-decoded response. ---

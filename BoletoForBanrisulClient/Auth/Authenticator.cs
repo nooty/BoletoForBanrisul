@@ -1,6 +1,7 @@
 using BoletoForBanrisul.Core.Converters;
 using BoletoForBanrisul.Client.Exceptions.Auth;
 using BoletoForBanrisul.Client.Helpers;
+using BoletoForBanrisul.Client.HttpClients;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -60,6 +61,10 @@ namespace BoletoForBanrisul.Client.Auth
             {
                 Content = content
             };
+
+            // POST, mas pedir um token não cria nem altera nada do lado do banco - só devolve um
+            // token novo. Sem esta marca, a troca OAuth ficaria sem retry nenhum.
+            request.MarkRetrySafe();
 
             var response = await _httpClient.SendAsync(request, cancellationToken);
 
