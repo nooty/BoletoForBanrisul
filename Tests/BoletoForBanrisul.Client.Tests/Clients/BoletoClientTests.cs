@@ -346,7 +346,7 @@ namespace BoletoForBanrisul.Client.Tests.Clients
         }
 
         [Fact]
-        public async Task GetBoletoAsync_PopulatesOcurrences_FromTheErrorBody()
+        public async Task GetBoletoAsync_PopulatesOccurrences_FromTheErrorBody()
         {
             const string errorJson = "{\"ocorrencias\":[{\"codigo\":\"E01\",\"mensagem\":\"Campo inv\\u00e1lido\",\"complemento\":\"seu_numero\"}]}";
             var (builder, _) = StubClientFactory.CreateBoletoClientBuilder(_ => JsonResponse(HttpStatusCode.BadRequest, errorJson));
@@ -354,17 +354,17 @@ namespace BoletoForBanrisul.Client.Tests.Clients
             using var client = builder.Build();
             var exception = await Assert.ThrowsAsync<InvalidRequestException>(() => client.GetBoletoAsync("0000038806"));
 
-            var ocurrence = Assert.Single(exception.Ocurrences);
-            Assert.Equal("E01", ocurrence.Code);
-            Assert.Equal("Campo inválido", ocurrence.Message);
-            Assert.Equal("seu_numero", ocurrence.Complement);
+            var occurrence = Assert.Single(exception.Occurrences);
+            Assert.Equal("E01", occurrence.Code);
+            Assert.Equal("Campo inválido", occurrence.Message);
+            Assert.Equal("seu_numero", occurrence.Complement);
         }
 
         [Fact]
-        public async Task GetBoletoAsync_On401_ThrowsUnauthorizedException_WhichIsNotAnApiException_AndCarriesNoOcurrences()
+        public async Task GetBoletoAsync_On401_ThrowsUnauthorizedException_WhichIsNotAnApiException_AndCarriesNoOccurrences()
         {
             // A real quirk of this codebase: HandleErrors throws Exceptions.Auth.UnauthorizedException directly
-            // for 401, bypassing the ApiException branch (and its Ocurrences population) entirely. Every other
+            // for 401, bypassing the ApiException branch (and its Occurrences population) entirely. Every other
             // mapped status goes through ApiException; 401 alone does not, even when the body carries an
             // "ocorrencias" array - it is simply never read for this status.
             const string errorJson = "{\"ocorrencias\":[{\"codigo\":\"E01\",\"mensagem\":\"Token expirado\",\"complemento\":\"\"}]}";

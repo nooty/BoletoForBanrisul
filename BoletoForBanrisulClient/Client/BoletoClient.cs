@@ -271,7 +271,7 @@ namespace BoletoForBanrisul.Client
 
                 var errorResponse = Deserialize<ErrorResponse>(content);
 
-                var ocurrences = errorResponse?.Ocorrencias;
+                var occurrences = errorResponse?.Ocorrencias;
 
                 ApiException exception;
 
@@ -305,8 +305,8 @@ namespace BoletoForBanrisul.Client
                         break;
                 }
 
-                if(ocurrences != null && ocurrences.Count > 0)
-                    exception.Ocurrences.AddRange(ocurrences.Select(o => new ApiOcurrence(o.Codigo, o.Mensagem, o.Complemento)).ToList());
+                if(occurrences != null && occurrences.Count > 0)
+                    exception.Occurrences.AddRange(occurrences.Select(o => new ApiOccurrence(o.Codigo, o.Mensagem, o.Complemento)).ToList());
 
                 throw exception;
             }

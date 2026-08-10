@@ -58,7 +58,7 @@ namespace BoletoForBanrisul.Client.Exceptions.Api
     public class ApiException : Exception
     {
         public HttpErrorCode HttpStatusCode { get; set; }
-        public List<ApiOcurrence> Ocurrences { get; } = new List<ApiOcurrence>();
+        public List<ApiOccurrence> Occurrences { get; } = new List<ApiOccurrence>();
 
         public ApiException(string message, HttpErrorCode httpStatusCode) : base(message)
         {
@@ -122,13 +122,13 @@ namespace BoletoForBanrisul.Client.Exceptions.Api
         }
     }
 
-    public class ApiOcurrence
+    public class ApiOccurrence
     {
         public string Code { get; }
         public string Message { get; }
         public string Complement { get; }
 
-        public ApiOcurrence(string code, string message, string complement)
+        public ApiOccurrence(string code, string message, string complement)
         {
             Code = code;
             Message = message;
