@@ -1,53 +1,278 @@
 # BoletoForBanrisul
 
-A solução **BoletoForBanrisul** contém componentes .NET destinados à integração com a [API de cobrança](https://developers.banrisul.com.br/pages/PORTAL_V1.8.3/docs/clientes-banrisul/api-cobranca-v1.4.1.html) do banco Banrisul. Esses pacotes permitem a automação de processos relacionados à emissão, impressão e gestão de boletos bancários.
+.NET components for Banrisul's
+[API Cobrança de Títulos](https://developers.banrisul.com.br/bpi/link/api-cobranca-titulos.html):
+register, query and manage *boletos* — the Brazilian bank payment slips — and render them as PDF
+locally.
 
-## Componentes
+> This is an independent, community project. It is not affiliated with, endorsed by, or supported by
+> Banco do Estado do Rio Grande do Sul (Banrisul). Using the API requires credentials issued by the
+> bank to your organization.
 
-### 1. **BoletoForBanrisul.Core**
+A few Portuguese terms are kept in this documentation and in the model members that mirror the
+bank's payloads, because they are its own field names: **beneficiário** (the payee), **pagador**
+(the payer), **nosso número** (the bank's identifier for a slip) and **linha digitável** (the number
+you type to pay a slip).
 
-O componente **BoletoForBanrisul.Core** reúne os modelos, enums, converters e helpers compartilhados usados pelo client de API e pelo gerador de PDF.
+## Components
 
-### 2. **BoletoForBanrisul.Client**
+| Package | What it is |
+| --- | --- |
+| `BoletoForBanrisul.Core` | Shared models, enums, JSON converters, helpers and the local validator |
+| `BoletoForBanrisul.Client` | HTTP client for the billing API, with OAuth2 handled for you |
+| `BoletoForBanrisul.Report` | PDF rendering of boletos through headless Chrome/Chromium |
 
-O componente **BoletoForBanrisul.Client** é um client .NET que oferece integração completa com a API de cobrança do banco Banrisul. Com ele, é possível realizar as seguintes operações:
+`.Report` depends on `.Core` and **not** on `.Client` — you can render slips you obtained some other
+way. All three target `netstandard2.0`.
 
-- Registrar boletos
-- Consultar boletos
-- Alterar a data de vencimento
-- Conceder abatimento
-- Baixar (cancelar) boletos
-- Emitir boletos em formato PDF
- 
-O componente também gerencia o processo de autenticação OAuth2. Os tokens de retorno são armazenados em cache para reutilização, facilitando a utilização da API de cobrança.
+## Installation
 
-O pacote também inclui extensões para registrar o builder no contêiner de injeção de dependência do .NET.
+```bash
+dotnet add package BoletoForBanrisul.Client
+dotnet add package BoletoForBanrisul.Report
+```
 
-Para a exportação de boletos em formato PDF localmente, utilize o componente complementar **BoletoForBanrisul.Report**.
+Both pull in `BoletoForBanrisul.Core`. Install it directly only if you want the models and helpers on
+their own:
 
-### 3. **BoletoForBanrisul.Report**
+```bash
+dotnet add package BoletoForBanrisul.Core
+```
 
-**BoletoForBanrisul.Report** é um componente .NET que permite a exportação de boletos gerados em formato PDF. As principais funcionalidades incluem:
+> `BoletoForBanrisul.Report` also needs Chrome or Chromium installed on the machine that runs the
+> conversion — the NuGet package does not bring a browser with it. See
+> [Running in Docker](#running-in-docker) for a container that has one.
 
-- Geração de boletos em formato PDF
-- Geração de arquivo zip contendo múltiplos PDFs de boletos gerados
+## Quick start
 
-Este componente utiliza os modelos compartilhados do **BoletoForBanrisul.Core**, sem depender do **BoletoForBanrisul.Client**.
+Register a boleto and print the registered slip to PDF:
 
-O pacote também inclui extensões para registrar o builder no contêiner de injeção de dependência do .NET.
+```csharp
+using BoletoForBanrisul.Client;
+using BoletoForBanrisul.Core.Models;
+using BoletoForBanrisul.Core.Models.Types;
+using BoletoForBanrisul.Report;
 
-**Observações**:
-O componente utiliza a biblioteca ChromiumHtmlToPdfLib para a geração dos PDFs de boletos, através do Google Chrome/Chromium em modo headless. É necessário que o Chrome ou Chromium esteja instalado no ambiente de execução.
+var boleto = new Boleto
+{
+    Ambiente = Ambiente.Teste,
+    Titulo = new Titulo
+    {
+        SeuNumero = "PED-1042",
+        DataEmissao = DateTime.Today,
+        DataVencimento = DateTime.Today.AddDays(10),
+        ValorNominal = 1234.56m,
+        Especie = Especie.Outros,
+        Pagador = new Pagador
+        {
+            TipoPessoa = TipoPessoa.PessoaFisica,
+            CpfCnpj = "67524451091",
+            Nome = "PAGADOR FICTICIO",
+            Endereco = "RUA CALDAS JUNIOR 120",
+            Cep = "90010260",
+            Cidade = "PORTO ALEGRE",
+            Uf = "RS",
+            Aceite = Aceite.Sim
+        }
+    }
+};
 
-#### Geração de PDF
+using var client = new BoletoClientBuilder()
+    .SetAuthentication("client-id", "client-secret")
+    .SetBeneficiary("0123456789012")
+    .UseSandbox()
+    .Build();
 
-`IBoletoReport` é `IDisposable` e os dois métodos aceitam `CancellationToken`:
+var response = await client.CreateBoletoAsync(boleto, CancellationToken.None);
+
+using var report = new BoletoReportBuilder()
+    .Configure(options => options.Beneficiary = new BeneficiarySettings
+    {
+        Code = "0123456789012",
+        Name = "ACME LTDA",
+        CpfCnpj = "12345678000199",
+        Address = "RUA CALDAS JUNIOR 120",
+        City = "PORTO ALEGRE",
+        State = "RS",
+        ZipCode = "90010-260"
+    })
+    .Build();
+
+// The bank returns the registered slip enriched with nosso número, barcode and linha digitável.
+var pdf = await report.PrintAsync(new Boleto { Titulo = response.Titulo! }, CancellationToken.None);
+
+await File.WriteAllBytesAsync("boleto.pdf", pdf);
+```
+
+`PrintAsync` returns the PDF bytes; nothing is written to disk unless you write it. The report also
+renders slips the bank never saw: pass a `Boleto` you filled in yourself and it computes the barcode
+and the linha digitável from its fields.
+
+The `using var client` above fits this script, which runs once and exits. In an application that
+serves many requests, build the client once and share it — see [Using the client](#using-the-client).
+
+## Using the client
+
+`BoletoClientBuilder` produces an `IBoletoClient`. Authentication credentials and the beneficiário
+code are required; everything else is optional.
+
+```csharp
+using var client = new BoletoClientBuilder()
+    .SetAuthentication("client-id", "client-secret")   // required; scope defaults to "boletos"
+    .SetBeneficiary("0123456789012")                   // required; full beneficiário code
+    .UseSandbox()                                      // apidev.banrisul.com.br instead of production
+    .SetRequestMode(RequestModeType.Test)              // bergs-ambiente header: "T" instead of "P"
+                                                       // (query and change operations only)
+    .EnableLogging(@"C:\logs\banrisul")                // defaults to ./Logs when the path is omitted
+    .SetTokenStorage(new SharedInMemoryTokenStorage()) // the default; swap for a distributed cache
+    .Build();
+```
+
+`SetRequestMode` sends the `bergs-ambiente` header, which registration does not use — it has no
+effect on `CreateBoletoAsync`. Registration carries its own environment in the payload instead, as
+`Boleto.Ambiente` (default: `Teste`), which mirrors the bank's own request collection, where
+`POST /boletos` carries no `bergs-ambiente` header at all.
+
+`EnableLogging` writes four JSON files per call — request, request body, response, response body —
+into the given directory. The `Authorization` header is redacted; **the bodies are not**, so those
+files hold payer names and documents in the clear. Point it somewhere you are willing to keep
+personal data, and leave it off in production unless you are actively investigating something.
+
+`IBoletoClient` is meant to be built per use, not shared: `SetAuthentication`, `SetBeneficiary` and
+`SetRequestMode` are set once at `Build()` and frozen from then on, so a multi-tenant application —
+different credentials or a different beneficiário per request — rebuilds the client for each one. It
+is `IDisposable` and owns the two `HttpClient` instances the builder creates, one for the API and a
+separate one for the token endpoint; dispose it (`using var client = ...`) when that unit of work is
+done. If your credentials never change, building once and sharing the instance is a valid
+optimization, but it is not what the DI registration below assumes.
+
+### Operations
+
+| Method | What it does | Returns |
+| --- | --- | --- |
+| `CreateBoletoAsync(boleto, ct)` | Registers a slip | `CreateBoletoResponse` |
+| `GetBoletoAsync(id, typeId, ct)` | Queries a slip | `GetBoletoResponse` |
+| `ChangeDueDateAsync(id, newDueDate, typeId, ct)` | Changes the due date | `ChangeDueDateResponse` |
+| `GrantAbatementAsync(id, abatement, typeId, ct)` | Grants a rebate | `GrantAbatementResponse` |
+| `CancelBoletoAsync(id, typeId, ct)` | Requests cancellation (*baixa*) | `CancelBoletoResponse` |
+| `IssueBoletoAsync(id, typeId, ct)` | Asks the **bank** for the PDF | `byte[]` |
+
+Every method takes a `CancellationToken`. The identifier can be the nosso número, the barcode or the
+linha digitável — say which through `BoletoIdentifierType`; omit it and the nosso número is assumed.
+
+`IssueBoletoAsync` returns the bank's own rendering of the slip. Use
+`BoletoForBanrisul.Report` instead when you want to render locally, with your own layout, without a
+round trip.
+
+### Authentication
+
+OAuth2 is handled for you: the client requests a token on first use, caches it and reuses it until
+shortly before it expires — the renewal margin is five minutes, capped at half the token's lifetime
+so that short-lived tokens are not renewed on every call. `SharedInMemoryTokenStorage` is the default
+and shares the cache across every client in the process, so two clients with the same credentials
+authenticate once. Implement `ITokenStorage` and pass it to `SetTokenStorage` to keep the token
+somewhere else — a distributed cache, for instance, so that several instances of your application do
+not each request their own.
+
+### Resilience
+
+For retry-enabled requests, transient failures — connection errors, 5xx, 408 — are retried three times with decorrelated jitter
+backoff starting at one second, and every request times out after 100 seconds.
+
+Which calls are retried is decided per request, not per client. Only operations that do not mutate
+boleto state are retried:
+
+| Call | Retried | Why |
+| --- | --- | --- |
+| `GetBoletoAsync`, `IssueBoletoAsync` | Yes | Reading changes nothing at the bank |
+| The OAuth token exchange | Yes | Asking for a token creates nothing at the bank |
+| **`CreateBoletoAsync`**, **`CancelBoletoAsync`**, **`ChangeDueDateAsync`**, **`GrantAbatementAsync`** | **No** | Writes have side effects and no documented idempotency — see below |
+
+A retryable request has its body buffered before the first attempt, so each attempt can send it
+again. One that is not retryable skips the buffering and goes straight out.
+
+> **Every boleto-mutating request is sent exactly once, on purpose.** The API documents no idempotency guarantee for
+> any of them, so a resend after a lost response is a gamble rather than a correction. Registration
+> is the costliest case — a resend can leave two slips where you asked for one — but a repeated
+> *baixa* or *alteração* is no better understood: the state may well converge, while the second
+> response comes back as an error about a slip already cancelled or already changed.
+
+A transient failure on a write therefore reaches you as an exception rather than being absorbed, and
+what happened at the bank is genuinely unknown at that point. Do not simply send it again: query the
+slip with `GetBoletoAsync` first, whenever you hold an identifier it accepts — nosso número, barcode
+or linha digitável.
+
+If the response to a registration that lets the bank generate the nosso número is lost, you are left
+holding none of those identifiers, and there is no query by `SeuNumero` to fall back on. That is the
+argument for sending an explicit `NossoNumero`: after an ambiguous failure, you still hold an
+identifier that `GetBoletoAsync` can query.
+
+A retry you write in your own application code inherits the same responsibility: resending a write is
+safe only once you have checked what the first attempt actually did.
+
+### Error handling
+
+| Exception | When |
+| --- | --- |
+| `ModelValidationException` | The boleto failed local validation; no request was sent |
+| `InvalidRequestException` | 400 — malformed request or invalid values |
+| `NotFoundException` | 404 — no such slip |
+| `UnprocessableEntityException` | 422 — well-formed but not processable |
+| `TooManyRequestsException` | 429 — throttled |
+| `InternalServerErrorException` | 500 |
+| `ServiceUnavailableException` | 503 — service temporarily unavailable |
+| `ResponseDeserializationException` | The response did not have the expected shape |
+| `UnauthorizedException` | 401 — the credentials were rejected |
+| `TokenDeserializationException` | The token response did not have the expected shape |
+| `ApiException` | Any other unsuccessful status, with the code in `HttpStatusCode` |
+| `HttpRequestException` | Network or transport failure, or no valid HTTP response was obtained |
+
+The API exceptions live in `BoletoForBanrisul.Client.Exceptions.Api` and derive from `ApiException`,
+which carries the `HttpStatusCode` and a list of `Occurrences` — the bank's own error codes and
+messages, when it sent any. The authentication ones live in `BoletoForBanrisul.Client.Exceptions.Auth`
+and derive from `AuthenticationException`.
+
+## Local validation
+
+Before any HTTP request, `CreateBoletoAsync` validates the `Boleto`. An invalid slip throws
+`ModelValidationException` and **nothing is sent**.
+
+`ModelValidationException` lives in `BoletoForBanrisul.Core.Validation`, carries
+`IReadOnlyList<ValidationResult> Errors` with the dotted path of each invalid field (for example,
+`Titulo.Pagador.Cep`), and **does not derive from `ApiException`** — a `catch (ApiException)` will not
+catch it. That is deliberate: a local validation failure (your slip is malformed) is a different
+thing from a bank failure (the API rejected the request).
+
+Text fields longer than their maximum are rejected by validation rather than truncated on
+serialization.
+
+To validate without throwing — to show the errors in a form before submitting, say:
+
+```csharp
+using BoletoForBanrisul.Core.Validation;
+
+if (!RecursiveValidator.TryValidate(boleto, out var errors))
+{
+    foreach (var error in errors)
+        Console.WriteLine($"{string.Join(", ", error.MemberNames)}: {error.ErrorMessage}");
+}
+```
+
+## Using the report
+
+`BoletoReportBuilder` produces an `IBoletoReport`, which is `IDisposable` and offers two methods,
+both cancellable:
 
 ```csharp
 using BoletoForBanrisul.Report;
 
 using var report = new BoletoReportBuilder()
-    .Configure(options => options.Beneficiary = new BeneficiarySettings { /* ... */ })
+    .Configure(options =>
+    {
+        options.Beneficiary = new BeneficiarySettings { /* ... */ };
+        options.PaymentLocation = "PAGAR EM QUALQUER BANCO OU CORRESPONDENTE BANCÁRIO.";
+        options.FileNameTemplate = "boleto_{NossoNumero}_{DataVencimento}";
+    })
     .ConfigureChromium(chromium =>
     {
         chromium.ConversionTimeout = TimeSpan.FromMinutes(2);
@@ -60,22 +285,33 @@ var pdf = await report.PrintAsync(boleto, cancellationToken);
 var zip = await report.ZipBoletosAsync(boletos, cancellationToken);
 ```
 
-Cada conversão usa um profile do Chromium próprio e descartável, sem cache, apagado ao final: um
-Chromium morto no meio de uma conversão não contamina a próxima. Antes de subir o navegador é
-verificado o espaço livre em disco — sem espaço, o Chromium pendura no meio da conversão em vez de
-retornar erro.
+`ZipBoletosAsync` names each entry from `FileNameTemplate` and appends ` (2)`, ` (3)` and so on when
+two slips would produce the same name, so no entry is ever silently lost.
 
-O `Dispose` do relatório descarta o conversor **apenas** quando foi o `Build()` que o criou. Um
-conversor fornecido por `SetPdfConverter` continua sendo de quem o forneceu.
+`IBoletoReport` is immutable once built and safe for concurrent use. `BoletoReport` also has public
+constructors, if you would rather wire the parts yourself than go through the builder.
 
-`IBoletoReport` é imutável depois de construído e seguro para uso concorrente.
+### Print settings
 
-A renderização do HTML fica no `IBoletoTemplateRenderer`, separado do relatório porque tem tempo de
-vida diferente: construí-lo resolve as referências de metadados do Roslyn e cria um cache de
-templates, então uma instância por boleto recompilaria o template a cada impressão. Sem configuração,
-os relatórios compartilham `RazorBoletoTemplateRenderer.Default`, com o template embutido no pacote.
+| Property | Default | Purpose |
+| --- | --- | --- |
+| `Beneficiary` | empty | Payee shown on the slip: code, name, CPF/CNPJ and address |
+| `PaymentLocation` | `PAGAR EM QUALQUER BANCO...` | The "local de pagamento" line |
+| `LogoFilePath` | embedded Banrisul logo | Path to your own logo image |
+| `FileNameTemplate` | `boleto_{NossoNumero}` | Name of each PDF, without the extension |
 
-Para um template próprio, construa um renderizador e reaproveite a mesma instância:
+`FileNameTemplate` accepts these placeholders: `{NossoNumero}`, `{SeuNumero}`, `{CpfCnpjPagador}`,
+`{NomePagador}`, `{DataVencimento}`, `{DataEmissao}`, `{NomeBeneficiario}` and
+`{CpfCnpjBeneficiario}`. Dates come out as `yyyyMMdd`, CPF/CNPJ as digits only.
+
+### Custom templates
+
+HTML rendering lives in an `IBoletoTemplateRenderer`, kept separate from the report because it has a
+different lifetime: constructing one resolves Roslyn's metadata references and creates a template
+cache, so an instance per slip would recompile the template on every print. Without configuration,
+reports share `RazorBoletoTemplateRenderer.Default`, which uses the template embedded in the package.
+
+For your own template, build one renderer and reuse that same instance:
 
 ```csharp
 var renderer = new RazorBoletoTemplateRenderer(@"C:\templates", "Boleto.cshtml");
@@ -85,86 +321,77 @@ using var report = new BoletoReportBuilder()
     .Build();
 ```
 
-#### Tratamento de erros
+### Chromium
 
-| Exceção | Quando | Retentar? |
+PDF rendering goes through [ChromiumHtmlToPdfLib](https://github.com/Sicos1977/ChromiumHtmlToPdf) and
+a headless Chrome/Chromium, which **must be installed on the machine that runs the conversion**.
+
+`ConfigureChromium` tunes the default converter:
+
+| Setting | Default | Purpose |
 | --- | --- | --- |
-| `InsufficientDiskSpaceException` | Espaço livre abaixo de `MinimumFreeDiskMegabytes` | Não, enquanto o disco não for liberado |
-| `TimeoutException` | A conversão estourou o prazo — o `ConversionTimeout` do navegador ou o deadline duro `ConversionTimeout + HardTimeoutGrace` | Só com alguma tolerância; indica navegador travado |
-| `OperationCanceledException` | O `CancellationToken` do chamador foi cancelado | Não |
-| `PdfConversionException` | Qualquer outra falha da conversão (causa em `InnerException`) | Sim |
+| `ConversionTimeout` | 2 min | Budget for a whole conversion — startup, navigation and printing |
+| `HardTimeoutGrace` | 30 s | Extra time for the cancellation to be observed before the process is killed |
+| `MinimumFreeDiskMegabytes` | 500 | Free space required before launching; `0` turns the check off |
+| `MaxConcurrentConversions` | 1 | Conversions in flight per converter — one Chromium process each |
+| `UserProfileDirectory` | null | Fixed `--user-data-dir`; null gives each conversion its own |
+| `UseCache` | false | Chromium's on-disk cache |
+| `ChromiumExecutablePath` | null | Where the browser is; null locates it automatically |
+| `Browser` | `Chrome` | Which browser to drive |
+| `ChromiumArguments` | 11 headless-friendly flags | Command line; add or remove, do not replace the list |
+| `PageSettings` | ChromiumHtmlToPdfLib's default | Paper size, margins, orientation |
+| `WaitForWindowStatus` | null | Value of `window.status` to wait for before printing |
+| `WaitForWindowStatusTimeout` | 60000 ms | How long to wait for it |
+| `MediaLoadTimeout` | null | How long to wait for media; null keeps ChromiumHtmlToPdfLib's behaviour |
+| `OrphanProfileMaxAge` | 1 h | Age at which a forgotten profile counts as an orphan |
+| `OrphanCleanupInterval` | 1 h | Minimum gap between orphan sweeps in one process |
+| `Logger` | null | `ILogger` for the converter and for ChromiumHtmlToPdfLib |
 
-Os tipos vivem em `BoletoForBanrisul.Report.Exceptions`. A distinção existe para que a política de
-retry não fique em `Handle<Exception>`, que retentaria também cancelamento e disco cheio —
-multiplicando o tempo preso justamente nos casos em que retentar não resolve.
+Settings are copied when the converter is built — changing the object afterwards has no effect. To
+run with different settings, build another converter. A `ConversionTimeout` below one second is
+refused outright: Chromium cannot finish starting in that time, so the value could only ever produce
+failure.
 
-São dois prazos, com papéis diferentes. O `ConversionTimeout` é o orçamento da conversão, contado de
-ponta a ponta pelo próprio conversor — partida, navegação e impressão. Vencido o orçamento, a conversão
-é cancelada e o `HardTimeoutGrace` é o tempo que se dá para esse cancelamento ser observado; passado
-ele, o navegador travou num nível que não devolve o `await` e o processo é derrubado à força. Estourar
-qualquer um dos dois resulta em `TimeoutException`.
+`SetPdfConverter` and `ConfigureChromium` cannot be combined — `ConfigureChromium` only configures the
+default converter, which is not used at all once you supply your own. Supplying your own
+`IPdfConverter` also means you own its lifetime: the report disposes the converter **only** when it
+was `Build()` that created it.
 
-O orçamento é contado aqui, e não delegado ao navegador, por dois motivos: o prazo interno da
-biblioteca só começa depois da navegação, deixando-a descoberta, e quando ele vence a biblioteca o
-relata de um jeito indistinguível de um erro de conteúdo — o que torna impossível classificar um
-timeout pelo tipo da exceção recebida.
+### Errors and timeouts
 
-Um `ConversionTimeout` abaixo de 1 segundo é recusado na construção: o navegador não termina de subir
-nesse tempo, então o valor só produziria falha. As configurações também são copiadas na construção —
-alterar o objeto depois de criar o conversor não tem efeito. Para trocar de configuração, construa
-outro conversor.
+| Exception | When | Retry? |
+| --- | --- | --- |
+| `InsufficientDiskSpaceException` | Free space below `MinimumFreeDiskMegabytes` | No, not until the disk is freed |
+| `TimeoutException` | The conversion overran either clock (see below) | Depends — see below |
+| `OperationCanceledException` | The caller's `CancellationToken` was cancelled | No |
+| `PdfConversionException` | Any other conversion failure (cause in `InnerException`) | Usually |
 
-Cada conversão usa um profile descartável, apagado ao final. Como rede de segurança contra o que
-escapar disso — um processo morto no meio de uma conversão, um handle que não foi liberado a tempo —
-o conversor varre os profiles esquecidos sozinho: quando a última varredura passou de
-`OrphanCleanupInterval` (padrão 1 hora), a conversão seguinte dispara uma nova em background,
-apagando o que estiver parado há mais de `OrphanProfileMaxAge`. Quem dispara é a conversão e não um
-timer, porque profile órfão só nasce de uma conversão — um processo ocioso não acumula nada para
-limpar.
+`TimeoutException` covers two different situations. Overrunning `ConversionTimeout` may mean nothing
+worse than a budget set too tight for a heavy slip on a loaded machine, and a retry is reasonable;
+overrunning the hard deadline on top of it means Chromium did not answer cancellation at all, and
+retrying immediately tends to reproduce it. `PdfConversionException` is worth retrying when the cause
+is transient — a browser that failed to start, a broken DevTools session — but not when it is
+deterministic, such as an invalid configuration or HTML that never renders. When a retry is
+appropriate, keep it bounded; deterministic failures should surface immediately.
 
-Ao final de cada conversão o conversor confirma que o processo do navegador terminou e, se ele tiver
-sobrevivido ao encerramento, o derruba junto com a árvore de subprocessos. Essa última parte depende do
-runtime: `Process.Kill(entireProcessTree)` existe do **.NET Core 3.0** em diante, e é o que o pacote
-usa quando disponível. Em runtimes mais antigos — incluindo .NET Framework, alcançável porque o pacote
-tem como alvo `netstandard2.0` — só o processo principal é encerrado. A biblioteca de conversão, por
-sua vez, nunca encerra a árvore, então um filho que sobreviva a um pai já morto fica fora do alcance de
-qualquer um dos dois.
+The types live in `BoletoForBanrisul.Report.Exceptions`. The distinction exists so that a retry policy
+need not be written as `Handle<Exception>`, which would also retry cancellation and a full disk —
+multiplying the time spent stuck in exactly the cases where retrying does not help.
 
-A idade, porém, é só o gatilho: quem autoriza a remoção é o lock de propriedade que cada conversão
-mantém aberto dentro do seu profile. Antes de apagar, a varredura tenta tomar esse lock, e desiste do
-diretório se ele ainda tiver dono. É o que permite compartilhar a raiz de profiles entre processos sem
-que um deles apague o `--user-data-dir` do outro no meio de uma conversão — inclusive quando o vizinho
-foi configurado com um deadline maior. Como rede adicional para os profiles que não têm lock, o
-conversor nunca considera órfão um profile mais novo que `ConversionTimeout + HardTimeoutGrace`.
+There are two clocks, with different jobs. `ConversionTimeout` is the conversion's budget, counted end
+to end by the converter itself — startup, navigation and printing. When the budget runs out the
+conversion is cancelled, and `HardTimeoutGrace` is the time allowed for that cancellation to be
+observed; past it, the browser is wedged at a level that never returns the `await` and the process is
+killed. Overrunning either one produces `TimeoutException`.
 
-`ChromiumHtmlToPdfConverter.CleanupOrphanedProfiles(TimeSpan.FromHours(1))` continua público para uma
-varredura manual no start, útil depois de uma queda.
+The budget is counted by `ChromiumHtmlToPdfConverter` rather than delegated to ChromiumHtmlToPdfLib
+for two reasons: the library's own clock starts only after navigation, leaving startup uncovered, and
+when it does expire the library reports it in a way that is indistinguishable from a content error —
+which makes classifying a timeout by exception type impossible.
 
-## Instalação
+## Dependency injection
 
-Tu podes instalar os componentes diretamente do [NuGet](https://www.nuget.org/) utilizando os seguintes comandos:
-
-Para instalar o **BoletoForBanrisul.Client**:
-
-```bash
-dotnet add package BoletoForBanrisul.Client
-```
-
-Para instalar o **BoletoForBanrisul.Core** diretamente quando precisar apenas dos modelos e helpers compartilhados:
-
-```bash
-dotnet add package BoletoForBanrisul.Core
-```
-
-Para instalar o **BoletoForBanrisul.Report**:
-
-```bash
-dotnet add package BoletoForBanrisul.Report
-```
-
-## Injeção de dependência
-
-Para registrar o builder do client:
+To register the client builder:
 
 ```csharp
 using BoletoForBanrisul.Client.Extensions;
@@ -173,11 +400,23 @@ services.AddBoletoForBanrisulClientBuilder((builder, provider) =>
 {
     builder
         .SetAuthentication("client-id", "client-secret")
-        .SetBeneficiary("codigo-beneficiario");
+        .SetBeneficiary("0123456789012");
 });
 ```
 
-Para registrar o gerador de relatórios:
+Inject `BoletoClientBuilder` and build the client where you use it, same as the report below:
+
+```csharp
+using var client = builder.Build();
+
+var response = await client.CreateBoletoAsync(boleto, cancellationToken);
+```
+
+`IBoletoClient` is deliberately **not** registered either, for the same reason as `IBoletoReport`: it
+is what `Build()` freezes credentials and beneficiário into, and those can differ from one resolution
+to the next.
+
+To register the report builder:
 
 ```csharp
 using BoletoForBanrisul.Report.Extensions;
@@ -190,81 +429,132 @@ services.AddBoletoForBanrisulReportBuilder(
     chromium => chromium.ConversionTimeout = TimeSpan.FromMinutes(2));
 ```
 
-Uma chamada registra tudo:
+That one call registers everything the report needs:
 
-| Serviço | Tempo de vida | Por quê |
+| Service | Lifetime | Why |
 | --- | --- | --- |
-| `IPdfConverter` | Singleton | Carrega recursos de processo: Chromium e o semáforo de concorrência |
-| `IBoletoTemplateRenderer` | Singleton | Carrega o engine Razor e o cache de templates compilados |
-| `BoletoReportBuilder` | Transiente | Monta o relatório com o `PrintSettings` do momento |
+| `IPdfConverter` | Singleton | Holds process-level resources: Chromium and the concurrency semaphore |
+| `IBoletoTemplateRenderer` | Singleton | Holds the Razor engine and the compiled-template cache |
+| `BoletoReportBuilder` | Transient | Assembles the report with the `PrintSettings` of the moment |
 
-Depois disso, injete o `BoletoReportBuilder` e construa o relatório na hora do uso:
+Inject `BoletoReportBuilder` and build the report where you use it:
 
 ```csharp
 using var report = builder
-    .Configure(options => options.Beneficiary = beneficiarioDoRequest)
+    .Configure(options => options.Beneficiary = beneficiaryFromRequest)
     .Build();
 
 var pdf = await report.PrintAsync(boleto, cancellationToken);
 ```
 
-O `IBoletoReport` **não** é registrado de propósito. Registrá-lo exigiria chamar `Build()` no momento
-do registro, o que congelaria o `PrintSettings` — o beneficiário acima de tudo — da primeira
-resolução para todos os boletos seguintes. A divisão é essa: o que é caro e serve a aplicação
-inteira (conversor e renderizador) é singleton; o que muda a cada boleto (`PrintSettings`) fica no
-relatório, que é barato de construir.
+`IBoletoReport` is deliberately **not** registered. Registering it would mean calling `Build()` at
+registration time, which would freeze the `PrintSettings` — the beneficiário above all — of the first
+resolution for every slip that followed. The split is that: what is expensive and serves the whole
+application (converter and renderer) is a singleton; what changes per slip (`PrintSettings`) lives in
+the report, which is cheap to build.
 
-Nenhum registro é forçado: todos usam `TryAdd`. Um `IPdfConverter` ou `IBoletoTemplateRenderer` já
-registrado permanece, e se o `configureBuilder` chamar `SetPdfConverter`, `ConfigureChromium` ou
-`SetTemplateRenderer`, essa escolha é respeitada e o serviço do contêiner não é injetado.
+No registration is forced — all of them use `TryAdd`. An `IPdfConverter` or `IBoletoTemplateRenderer`
+already registered stays, and if `configureBuilder` calls `SetPdfConverter`, `ConfigureChromium` or
+`SetTemplateRenderer`, that choice wins and the container's service is not injected.
 
-O descarte é do contêiner, que descarta os serviços `IDisposable` que ele mesmo criou. Chame
-`Dispose` apenas no que tu criares na mão — o relatório, por exemplo.
+Disposal belongs to the container, which disposes the `IDisposable` services it created itself. Call
+`Dispose` only on what you create by hand — the report, for instance.
 
-## Validação local
+## Running in Docker
 
-Antes de qualquer requisição HTTP, `CreateBoletoAsync` valida o `Boleto` localmente. Um boleto
-inválido lança `ModelValidationException` e **nenhuma requisição é enviada**.
+The final stage of an Alpine image, with what the report needs and nothing else:
 
-`ModelValidationException` vive em `BoletoForBanrisul.Core.Validation`, carrega
-`IReadOnlyList<ValidationResult> Errors` com o caminho pontuado de cada campo inválido (por exemplo,
-`Titulo.Pagador.Cep`), e **não herda de `ApiException`** — quem só tem `catch (ApiException)` não a
-captura. A distinção é proposital: falha de validação local (o boleto está malformado) é uma coisa
-diferente de falha do banco (a API rejeitou a requisição).
+```dockerfile
+FROM mcr.microsoft.com/dotnet/aspnet:8.0-alpine AS final
+WORKDIR /app
 
-Para validar sem lançar exceção — por exemplo, para exibir os erros num formulário antes de enviar:
+RUN apk add --no-cache chromium tini icu-libs icu-data-full && \
+    apk add --no-cache msttcorefonts-installer fontconfig && \
+    update-ms-fonts && fc-cache -f
 
-```csharp
-using BoletoForBanrisul.Core.Validation;
+ENV DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=false
 
-if (!RecursiveValidator.TryValidate(boleto, out var errors))
-{
-    foreach (var error in errors)
-        Console.WriteLine($"{string.Join(", ", error.MemberNames)}: {error.ErrorMessage}");
-}
+COPY --from=publish /app/publish .
+
+ENTRYPOINT ["/sbin/tini", "--", "dotnet", "YourApp.dll"]
 ```
 
-**Mudança de comportamento**: campos de texto que excedem o tamanho máximo agora são **rejeitados**
-pela validação, em vez de truncados silenciosamente na serialização como acontecia antes.
+Each line earns its place:
 
-## Migração do Report `1.0.0-rc.6` para `1.0.0-rc.7`
+- **`chromium`** is the browser itself. ChromiumHtmlToPdfLib finds it in `/usr/bin` on its own; set
+  `ChromiumExecutablePath` if your base image puts it elsewhere.
+- **`tini`**, as PID 1, reaps the processes Chromium leaves behind. Without an init they pile up as
+  zombies until the container runs out of pids — see
+  [Profiles and process teardown](#profiles-and-process-teardown). Docker's `--init` flag does the
+  same job.
+- **The fonts** matter because the bundled template asks for Arial. Without them fontconfig
+  substitutes whatever is at hand and the fields shift out of their boxes — a defect that shows up
+  only in the rendered PDF, never as an error.
+- **ICU and `DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=false`** are both required, and so is
+  `icu-data-full`. Amounts are formatted with `new CultureInfo("pt-BR")`. The Alpine base image ships
+  no ICU and sets the flag to `true`, and in that mode the constructor throws
+  `CultureNotFoundException`. Setting the flag without installing ICU is worse: the process fails
+  fast at startup. Installing `icu-libs` alone is not enough either — it comes with a reduced data
+  package that need not carry pt-BR, and when the data is missing the culture still reports itself as
+  `pt-BR` while the separators fall back, so the slip prints `R$1,234.56` instead of `R$ 1.234,56`.
+  That failure is silent and reaches the customer, which is why `icu-data-full` is named explicitly.
 
-| Mudança | O que fazer |
-| --- | --- |
-| `IPdfConverter.ConvertToPdfAsync` agora recebe `CancellationToken` | Implementações próprias precisam do novo parâmetro e devem honrá-lo. Chamadas existentes continuam compilando (o parâmetro tem valor padrão). |
-| `IBoletoReport` herda `IDisposable` | Descarte o relatório. Implementações próprias precisam de um `Dispose`. |
-| Ctor `ChromiumHtmlToPdfConverter(IEnumerable<string>, int)` removido | Use `ChromiumHtmlToPdfConverter(Action<ChromiumConverterSettings>)` ou `BoletoReportBuilder.ConfigureChromium`. |
-| `AddBoletoForBanrisulReportBuilder` passou a registrar também `IPdfConverter` e `IBoletoTemplateRenderer`, e ganhou um segundo parâmetro `configureChromium` | Nada. Os registros usam `TryAdd`, então o que já estiver registrado permanece. |
-| `PrintSettings.TemplateDirectoryPath` e `PrintSettings.TemplateFileName` removidos | Use `new RazorBoletoTemplateRenderer(diretorio, arquivo)` com `BoletoReportBuilder.SetTemplateRenderer`. A origem do template é configuração de aplicação, não de cada boleto. |
-| Padrões novos: profile descartável por conversão, sem cache, `ConversionTimeout` de 5 min → 2 min, mínimo de 500 MB livres em disco | Nada, se os padrões servem. Para voltar ao profile fixo, preencha `UserProfileDirectory`; para desligar a checagem de disco, use `MinimumFreeDiskMegabytes = 0`. |
+On Linux ChromiumHtmlToPdfLib always adds `--no-sandbox`, so Chromium's own sandbox — its main
+defence against a malicious page — is off. The renderer is a security surface: run it as a non-root
+user, give the container no more privilege than it needs, and be deliberate about where the HTML
+comes from. A container boundary is worth having, but it is not a replacement for the sandbox that
+was turned off.
 
-Quem propagava o token por `AsyncLocal` para contornar a assinatura antiga pode passá-lo direto e
-remover o contorno.
+## Implementation details
 
-## Testes
+Nothing here is needed to use the library. It is written down because it is the work
+`ChromiumHtmlToPdfConverter` does on top of ChromiumHtmlToPdfLib, and because it is what you would
+otherwise have to reverse-engineer the day a conversion misbehaves in production.
 
-Os testes estão organizados em quatro projetos sob `Tests/`. Os três primeiros são determinísticos e
-não exigem credenciais:
+### Profiles and process teardown
+
+Each conversion gets its own disposable Chromium profile, no cache, deleted at the end: a Chromium
+that dies mid-conversion cannot contaminate the next one. Free disk space is checked before the
+browser starts, because a full disk can make Chromium fail or hang mid-conversion rather than return
+a clear error.
+
+As a safety net for whatever escapes that — a process killed mid-conversion, a handle not released in
+time — the converter sweeps forgotten profiles on its own: when the last sweep is older than
+`OrphanCleanupInterval`, the next conversion starts a new one in the background, deleting anything
+idle for longer than `OrphanProfileMaxAge`. A conversion triggers it rather than a timer, because an
+orphaned profile is only ever born of a conversion — an idle process accumulates nothing to clean.
+
+Age is only the trigger. What authorizes the deletion is the owner lock each conversion holds open
+inside its profile: before deleting, the sweep tries to take that lock and gives up on the directory
+if it still has an owner. That is what makes it safe to share the profiles root between processes
+without one deleting another's `--user-data-dir` mid-conversion — including a neighbour configured
+with a longer deadline. As an additional net for profiles with no lock, the converter never treats a
+profile younger than `ConversionTimeout + HardTimeoutGrace` as an orphan.
+
+At the end of every conversion `ChromiumHtmlToPdfConverter` confirms the browser process is gone and,
+if it survived teardown, kills it along with its subprocess tree. That last part depends on the
+runtime: `Process.Kill(entireProcessTree)` exists from **.NET Core 3.0** onwards, and is used when
+available. On older runtimes — including .NET Framework, reachable because the package targets
+`netstandard2.0` — only the main process is killed. ChromiumHtmlToPdfLib never kills the tree either
+(its own `KillProcessAndChildren` calls plain `Process.Kill()` on the main process), so a child that
+outlives an already-dead parent is out of the reach of both layers.
+
+Two members are public for operating the profiles yourself:
+
+```csharp
+using BoletoForBanrisul.Report.Utils;
+
+// Where the temporary profiles live.
+var root = ChromiumHtmlToPdfConverter.ProfilesRootDirectory;
+
+// A manual sweep, useful at startup after a crash.
+ChromiumHtmlToPdfConverter.CleanupOrphanedProfiles(TimeSpan.FromHours(1));
+```
+
+## Testing
+
+Tests are split across four projects under `Tests/`. The first three are deterministic and need no
+credentials, no network and no browser:
 
 ```bash
 dotnet test Tests/BoletoForBanrisul.Core.Tests
@@ -272,6 +562,12 @@ dotnet test Tests/BoletoForBanrisul.Client.Tests
 dotnet test Tests/BoletoForBanrisul.Report.Tests
 ```
 
-Os testes de integração com a API real do Banrisul (`Tests/BoletoForBanrisul.IntegrationTests`) ficam
-desabilitados por padrão. Veja `Tests/BoletoForBanrisul.IntegrationTests/README.md` para configurar e
-executar esses cenários manualmente.
+`Tests/BoletoForBanrisul.IntegrationTests` holds the tests that reach outside: those that call the
+real Banrisul API, which need credentials, and those that render PDFs through a real Chrome, which
+need the browser. All of them are disabled by default. See
+[Tests/BoletoForBanrisul.IntegrationTests/README.md](Tests/BoletoForBanrisul.IntegrationTests/README.md)
+to configure and run them.
+
+## License
+
+MIT — see [LICENSE](LICENSE).

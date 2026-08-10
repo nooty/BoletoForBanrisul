@@ -1,17 +1,26 @@
-# Testes
+# Tests
 
-Os testes estão separados por projeto:
+Tests are split by project:
 
-- `Tests/BoletoForBanrisul.Core.Tests`: testes determinísticos do model, validação e helpers do Core,
-  sem chamadas para a API do Banrisul.
-- `Tests/BoletoForBanrisul.Client.Tests`: testes determinísticos do client HTTP (autenticação, políticas
-  de retry, extensões de DI), também sem chamadas reais.
-- `Tests/BoletoForBanrisul.Report.Tests`: testes determinísticos de geração de relatório/PDF, com o
-  conversor de PDF real substituído por um dublê.
-- `Tests/BoletoForBanrisul.IntegrationTests` (este projeto): testes que usam a API real do Banrisul e
-  exigem credenciais.
+- `Tests/BoletoForBanrisul.Core.Tests`: deterministic tests of the Core models, validation and
+  helpers, with no calls to the Banrisul API.
+- `Tests/BoletoForBanrisul.Client.Tests`: deterministic tests of the HTTP client (authentication,
+  retry policies, DI extensions), also without real calls.
+- `Tests/BoletoForBanrisul.Report.Tests`: deterministic tests of report and PDF generation, with the
+  real PDF converter replaced by a stub.
+- `Tests/BoletoForBanrisul.IntegrationTests` (this project): the tests that reach outside the process.
 
-## Rodar os testes unitários
+This project holds two kinds of test, and they need different things:
+
+| Tests | What they need |
+| --- | --- |
+| `AuthenticationTest`, `BoletoCreateTest`, `BoletoGetTest`, `BoletoCancelTest`, `BoletoChangeDueDateTest`, `BoletoGrantAbatementTest`, `IssueBoletoTest` | Sandbox credentials — they call the real API |
+| `PdfGenerationTest` | A local Chrome/Chromium — it makes no network call |
+
+Both kinds are gated by the same `RUN_BANRISUL_INTEGRATION_TESTS` variable, so running the PDF tests
+means setting it even though no credential is involved.
+
+## Running the unit tests
 
 ```bash
 dotnet test Tests/BoletoForBanrisul.Core.Tests
@@ -19,47 +28,55 @@ dotnet test Tests/BoletoForBanrisul.Client.Tests
 dotnet test Tests/BoletoForBanrisul.Report.Tests
 ```
 
-## Rodar os testes de integração
+## Running the integration tests
 
-Configure as variáveis de ambiente:
+Set the environment variables:
 
 ```bash
-CLIENT_ID=<seu-client-id>
-CLIENT_SECRET=<seu-client-secret>
+CLIENT_ID=<your-client-id>
+CLIENT_SECRET=<your-client-secret>
 RUN_BANRISUL_INTEGRATION_TESTS=true
 ```
 
-Depois execute:
+Then run:
 
 ```bash
 dotnet test Tests/BoletoForBanrisul.IntegrationTests
 ```
 
-Também é seguro rodar `dotnet test Tests/BoletoForBanrisul.IntegrationTests` sem essas variáveis: os
-testes ficam desabilitados por padrão (reportados como *Skipped*, sem nenhuma chamada de rede).
+The gate accepts `true` or `1`, in any casing. Anything else — including leaving it unset — disables
+the tests, so `dotnet test Tests/BoletoForBanrisul.IntegrationTests` is safe to run as it is: the
+tests report as *Skipped*, with no network call and no browser launched.
 
-## Inspecionar os PDFs gerados
+To run only the PDF tests, which need no credentials:
 
-Os testes de geração de PDF gravam os arquivos num diretório temporário próprio, apagado ao final de
-cada teste. Para conservá-los:
+```bash
+dotnet test Tests/BoletoForBanrisul.IntegrationTests --filter "FullyQualifiedName~PdfGenerationTest"
+```
+
+## Inspecting the generated PDFs
+
+The PDF tests write their files to a temporary directory of their own, deleted when each test ends.
+To keep them:
 
 ```bash
 KEEP_BANRISUL_TEST_ARTIFACTS=true
 ```
 
-O caminho do diretório é impresso no output do teste.
+The directory path is printed in the test output.
 
-## Caçar falhas intermitentes
+## Hunting intermittent failures
 
-`repeat-pdf-tests.ps1` roda os testes de PDF repetidas vezes e grava a saída completa de toda
-execução que falhar em `pdf-test-failures/` — com o assert, a exceção e o stack trace. Existe porque
-uma falha intermitente só é útil se a mensagem for capturada na hora em que ela acontece.
+`repeat-pdf-tests.ps1` runs the PDF tests repeatedly and writes the full output of every failing run
+to `pdf-test-failures/` — assert, exception and stack trace. It exists because an intermittent failure
+is only useful if the message is captured at the moment it happens.
 
 ```powershell
-.\repeat-pdf-tests.ps1                                                   # 30x a classe inteira
+.\repeat-pdf-tests.ps1                                                   # 30 runs of the whole class
 .\repeat-pdf-tests.ps1 -Iterations 100 -Filter Should_Abort_Conversion_When_Cancelled
-.\repeat-pdf-tests.ps1 -Iterations 200 -StopOnFirstFailure               # para no primeiro erro
+.\repeat-pdf-tests.ps1 -Iterations 200 -StopOnFirstFailure               # stop at the first failure
+.\repeat-pdf-tests.ps1 -SkipBuild                                        # go straight to the runs
 ```
 
-Cada iteração também compara a quantidade de profiles do Chromium antes e depois, para separar "o
-teste falhou" de "o teste falhou porque sobrou profile".
+Each iteration also compares how many Chromium profiles exist before and after, to separate "the test
+failed" from "the test failed because a profile was left behind".
