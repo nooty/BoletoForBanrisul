@@ -10,19 +10,24 @@ namespace BoletoForBanrisul.Report.Utils
     public static class BarcodeUtils
     {
         /// <summary>
-        /// Generates a CODE 128 barcode from the given code, encoded as an SVG data URI.
+        /// Generates an Interleaved 2 of 5 barcode from the given code, encoded as an SVG data URI.
+        /// This is the symbology FEBRABAN specifies for the 44-digit boleto barcode, so the code is
+        /// expected to be numeric and of even length.
         /// </summary>
         /// <param name="code">The value to encode as a barcode.</param>
         /// <returns>A "data:image/svg+xml;base64,..." URI containing the rendered barcode.</returns>
         public static string GenerateBarcodeAsSvg(string code)
         {
-            // Dimensions converted to pixels, based on 96 DPI.
+            // Dimensions converted to pixels, based on 96 DPI, matching the 103mm x 13mm printed
+            // size. Interleaved 2 of 5 spreads the 44 digits over 405 modules, wider than the ~389
+            // requested here, so ZXing keeps its natural width and the template's CSS scales it back
+            // to 103mm - which puts the narrow bar at 0.254mm, the minimum FEBRABAN allows.
             int widthInPixels = (int)(103 * 96 / 25.4); // ~389 pixels.
             int heightInPixels = (int)(13 * 96 / 25.4); // ~49 pixels.
 
             var writer = new BarcodeWriterSvg
             {
-                Format = BarcodeFormat.CODE_128,
+                Format = BarcodeFormat.ITF,
                 Options = new EncodingOptions
                 {
                     Height = heightInPixels,
@@ -70,7 +75,7 @@ namespace BoletoForBanrisul.Report.Utils
             string svg = writer.Write(code).ToString();
 
             // preserveAspectRatio="none" is required: with NoPadding=true the encoded matrix
-            // (especially CODE_128) is narrower than the requested Width/Height, and the report
+            // (especially the QR code) does not match the requested Width/Height, and the report
             // template stretches the <img> to a fixed mm size via CSS. The SVG default
             // (xMidYMid meet) would instead letterbox and shrink the image inside that box.
             // "<svg " occurs exactly once in ZXing's output - the DOCTYPE only contains

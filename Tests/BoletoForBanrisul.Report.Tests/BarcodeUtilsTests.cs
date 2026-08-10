@@ -65,13 +65,16 @@ namespace BoletoForBanrisul.Report.Tests
         }
 
         [Fact]
-        public void GenerateBarcodeAsSvg_RoundTripsThroughZXing()
+        public void GenerateBarcodeAsSvg_RoundTripsThroughZXingAsInterleaved2Of5()
         {
             var markup = DecodeSvg(BarcodeUtils.GenerateBarcodeAsSvg(BarcodePayload));
 
-            var text = DecodeRectanglesBack(markup, BarcodeFormat.CODE_128);
+            var result = DecodeRectanglesBack(markup, BarcodeFormat.ITF);
 
-            Assert.Equal(BarcodePayload, text);
+            // FEBRABAN specifies Interleaved 2 of 5 for the boleto barcode. Any other symbology
+            // renders a picture a bank scanner will not read, which no other test would catch.
+            Assert.Equal(BarcodeFormat.ITF, result.BarcodeFormat);
+            Assert.Equal(BarcodePayload, result.Text);
         }
 
         [Fact]
@@ -79,9 +82,10 @@ namespace BoletoForBanrisul.Report.Tests
         {
             var markup = DecodeSvg(BarcodeUtils.GenerateQRCodeAsSvg(QRCodePayload));
 
-            var text = DecodeRectanglesBack(markup, BarcodeFormat.QR_CODE);
+            var result = DecodeRectanglesBack(markup, BarcodeFormat.QR_CODE);
 
-            Assert.Equal(QRCodePayload, text);
+            Assert.Equal(BarcodeFormat.QR_CODE, result.BarcodeFormat);
+            Assert.Equal(QRCodePayload, result.Text);
         }
 
         /// <summary>
@@ -129,7 +133,7 @@ namespace BoletoForBanrisul.Report.Tests
         /// NoPadding=true - see BarcodeUtils), matching the real printed boleto, where the surrounding
         /// page and cell padding supply the quiet zone that ZXing's detector needs.
         /// </summary>
-        private static string DecodeRectanglesBack(string markup, BarcodeFormat format)
+        private static Result DecodeRectanglesBack(string markup, BarcodeFormat format)
         {
             const int margin = 10;
 
@@ -184,8 +188,7 @@ namespace BoletoForBanrisul.Report.Tests
                 }
             };
 
-            var result = reader.Decode(source) ?? throw new InvalidOperationException("ZXing failed to decode the reconstructed barcode.");
-            return result.Text;
+            return reader.Decode(source) ?? throw new InvalidOperationException("ZXing failed to decode the reconstructed barcode.");
         }
     }
 }
