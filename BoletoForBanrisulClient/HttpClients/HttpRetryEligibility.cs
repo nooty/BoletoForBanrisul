@@ -12,10 +12,11 @@ namespace BoletoForBanrisul.Client.HttpClients
     /// uma única chamada de quem usa a lib.
     /// </para>
     /// <para>
-    /// Requisições não idempotentes que sabidamente convergem para o mesmo estado quando repetidas se
-    /// declaram com <see cref="MarkRetrySafe"/>. A marcação é uma afirmação de quem monta a
-    /// requisição, não uma dedução do handler; por isso o padrão é o lado seguro, e um endpoint novo
-    /// que ninguém analisou nasce sem retry em vez de herdá-lo em silêncio.
+    /// Requisições não idempotentes se declaram com <see cref="MarkRetrySafe"/>, uma a uma. A
+    /// marcação é uma afirmação de quem monta a requisição, não uma dedução do handler; por isso o
+    /// padrão é o lado seguro, e um endpoint novo que ninguém analisou nasce sem retry em vez de
+    /// herdá-lo em silêncio. Hoje a única marcação é a troca de token OAuth: nenhuma das operações de
+    /// cobrança é reenviada, porque a API do Banrisul não documenta idempotência para nenhuma delas.
     /// </para>
     /// </remarks>
     internal static class HttpRetryEligibility
@@ -26,8 +27,9 @@ namespace BoletoForBanrisul.Client.HttpClients
 
         /// <summary>
         /// Declara que esta requisição pode ser reenviada com segurança, mesmo que o verbo não seja
-        /// idempotente. Use apenas quando repetir a chamada leva ao mesmo estado final - nunca em uma
-        /// operação que cria um recurso novo a cada envio.
+        /// idempotente. Use apenas quando repetir a chamada comprovadamente leva ao mesmo estado
+        /// final - não basta parecer inofensiva; na dúvida sobre o que o servidor faz com um segundo
+        /// envio, não marque.
         /// </summary>
         /// <remarks>
         /// A marca viaja em <see cref="HttpRequestMessage.Properties"/>, que

@@ -44,7 +44,10 @@ namespace BoletoForBanrisul.Client.Tests
 
             using var httpClient = new HttpClient(new PolicyHandler(ZeroDelayRetryPolicy(), innerHandler));
 
-            var request = new HttpRequestMessage(HttpMethod.Post, "https://example.com/boletos/123/baixar")
+            // A neutral URL on purpose: this exercises the marking mechanism and the request cloning around
+            // it, not a particular endpoint. In production the OAuth token exchange is the only request that
+            // carries this mark - no billing operation does.
+            var request = new HttpRequestMessage(HttpMethod.Post, "https://example.com/retry-safe")
             {
                 Content = new StringContent("{\"titulo\":{}}", Encoding.UTF8, "application/json")
             };

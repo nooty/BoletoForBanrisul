@@ -68,10 +68,12 @@ namespace BoletoForBanrisul.Client
                 Content = jsonContent
             };
 
-            // Deliberadamente sem MarkRetrySafe: esta é a única operação que cria um recurso novo a
-            // cada envio. Se o banco registrar o boleto e a resposta se perder na volta, um reenvio
-            // registraria um segundo - a API não documenta idempotência aqui. A falha transitória
-            // sobe para quem chamou, que tem como reconciliar por SeuNumero antes de tentar de novo.
+            // Nenhuma das operações de escrita desta classe é marcada com MarkRetrySafe: a API do
+            // Banrisul não documenta garantia de idempotência para nenhuma delas, então um reenvio
+            // automático depois de a resposta se perder na volta é uma aposta, não uma certeza. O
+            // registro é o caso mais caro - o reenvio criaria um segundo boleto -, mas o mesmo
+            // raciocínio vale para a baixa e para as duas alterações. A falha transitória sobe para
+            // quem chamou, que consegue consultar o estado real antes de decidir tentar de novo.
             var response = await HandleRequestAsync(request, cancellationToken);
 
             var responseContent = await response.Content.ReadAsStringAsync();
@@ -115,10 +117,6 @@ namespace BoletoForBanrisul.Client
 
             AddRequestModeHeader(request);
 
-            // Grava um valor absoluto de abatimento no boleto que já existe: reenviar chega ao mesmo
-            // estado final, sem criar nada.
-            request.MarkRetrySafe();
-
             var response = await HandleRequestAsync(request, cancellationToken);
 
             var responseContent = await response.Content.ReadAsStringAsync();
@@ -146,10 +144,6 @@ namespace BoletoForBanrisul.Client
 
             AddRequestModeHeader(request);
 
-            // Grava uma data de vencimento absoluta no boleto que já existe: reenviar chega ao mesmo
-            // estado final, sem criar nada.
-            request.MarkRetrySafe();
-
             var response = await HandleRequestAsync(request, cancellationToken);
 
             var responseContent = await response.Content.ReadAsStringAsync();
@@ -161,10 +155,6 @@ namespace BoletoForBanrisul.Client
             var request = new HttpRequestMessage(HttpMethod.Post, GetUrlForIdType(_settings.CancelBoletoUrl, idBoleto, typeId));
 
             AddRequestModeHeader(request);
-
-            // POST, mas é uma transição de estado do boleto que já existe para "baixado": reenviar
-            // chega ao mesmo estado final, sem criar nada.
-            request.MarkRetrySafe();
 
             var response = await HandleRequestAsync(request, cancellationToken);
 

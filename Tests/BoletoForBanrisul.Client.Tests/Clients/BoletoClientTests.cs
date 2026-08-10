@@ -102,15 +102,23 @@ namespace BoletoForBanrisul.Client.Tests.Clients
             Assert.Contains(exception.Errors, e => e.MemberNames.Contains("Titulo.Pagador.Cep"));
         }
 
-        [Fact]
-        public async Task CreateBoletoAsync_IsSentExactlyOnce_AndIsNotRetried_OnATransientFailure()
+        // --- Retry eligibility: no write operation is ever resent; reads still are. ---
+
+        public enum WriteOperation { Create, Cancel, ChangeDueDate, GrantAbatement }
+
+        [Theory]
+        [InlineData(WriteOperation.Create)]
+        [InlineData(WriteOperation.Cancel)]
+        [InlineData(WriteOperation.ChangeDueDate)]
+        [InlineData(WriteOperation.GrantAbatement)]
+        public async Task WriteOperations_AreSentExactlyOnce_AndAreNotRetried_OnATransientFailure(WriteOperation operation)
         {
-            // The regression this whole feature exists for. Registration is the one operation that creates a
-            // new resource on every send, and the API documents no idempotency guarantee - so if the bank
-            // registers the slip and the response is lost on the way back, a retry would register a second
-            // one. The transient failure has to surface to the caller instead, who can reconcile by
-            // SeuNumero before deciding to try again. Note this test also runs instantly: were the retry
-            // still in place it would sit through the production backoff.
+            // The regression this guards. None of these four is documented as idempotent by the bank, so a
+            // resend after a lost response is a gamble: registration would create a second slip, and for the
+            // baixa and the two alterações nobody can say what a second send does. The transient failure has
+            // to surface to the caller instead, who can query the real state before deciding to try again.
+            // Note this test also runs instantly: were the retry still in place it would sit through the
+            // production backoff four times over.
             var apiCalls = 0;
             var (builder, stub) = StubClientFactory.CreateBoletoClientBuilder(_ =>
             {
@@ -120,10 +128,40 @@ namespace BoletoForBanrisul.Client.Tests.Clients
 
             using var client = builder.Build();
 
-            await Assert.ThrowsAsync<ServiceUnavailableException>(() => client.CreateBoletoAsync(BoletoFactory.CreateValid()));
+            Task Invoke() => operation switch
+            {
+                WriteOperation.Create => client.CreateBoletoAsync(BoletoFactory.CreateValid()),
+                WriteOperation.Cancel => client.CancelBoletoAsync("0000038806"),
+                WriteOperation.ChangeDueDate => client.ChangeDueDateAsync("0000038806", new DateTime(2026, 9, 30)),
+                WriteOperation.GrantAbatement => client.GrantAbatementAsync("0000038806", 12.3m),
+                _ => throw new ArgumentOutOfRangeException(nameof(operation))
+            };
+
+            await Assert.ThrowsAsync<ServiceUnavailableException>(Invoke);
 
             Assert.Equal(1, apiCalls);
             Assert.Single(stub.ApiRequests());
+        }
+
+        [Fact]
+        public async Task GetBoletoAsync_IsRetried_OnATransientFailure()
+        {
+            // The counterweight: retry was narrowed, not switched off. Reading changes nothing at the bank,
+            // so a GET is still resent. This one pays the real production backoff (~1s), hence a single
+            // retry rather than a sequence.
+            var apiCalls = 0;
+            var (builder, _) = StubClientFactory.CreateBoletoClientBuilder(_ =>
+            {
+                apiCalls++;
+                return apiCalls == 1
+                    ? JsonResponse(HttpStatusCode.ServiceUnavailable, "{\"ocorrencias\":[]}")
+                    : JsonResponse(HttpStatusCode.OK, MinimalTituloResponseJson);
+            });
+
+            using var client = builder.Build();
+            await client.GetBoletoAsync("0000038806");
+
+            Assert.Equal(2, apiCalls);
         }
 
         // --- GetBoletoAsync: GET, no request-mode header, tipo_id query building, id escaping. ---
@@ -238,29 +276,6 @@ namespace BoletoForBanrisul.Client.Tests.Clients
             Assert.EndsWith("/0000038806/baixar", sent.RequestUri!.AbsolutePath);
             Assert.Equal("0010000001088", Assert.Single(sent.Headers.GetValues("bergs-beneficiario")));
             Assert.Equal("P", Assert.Single(sent.Headers.GetValues("bergs-ambiente")));
-        }
-
-        [Fact]
-        public async Task CancelBoletoAsync_IsRetried_OnATransientFailure()
-        {
-            // The counterpart to the registration test above: dropping the retry for the registration POST
-            // must not have leaked into the other operations. Cancelling is a POST too, but it is a state
-            // transition on a slip that already exists - repeating it lands on the same final state - so
-            // BoletoClient marks it retry-safe. This one pays the real production backoff (~1s), hence the
-            // single retry rather than a sequence.
-            var apiCalls = 0;
-            var (builder, stub) = StubClientFactory.CreateBoletoClientBuilder(_ =>
-            {
-                apiCalls++;
-                return apiCalls == 1
-                    ? JsonResponse(HttpStatusCode.ServiceUnavailable, "{\"ocorrencias\":[]}")
-                    : JsonResponse(HttpStatusCode.OK, MinimalOperationResponseJson);
-            });
-
-            using var client = builder.Build();
-            await client.CancelBoletoAsync("0000038806");
-
-            Assert.Equal(2, apiCalls);
         }
 
         // --- IssueBoletoAsync: GET, request-mode header present, base64-decoded response. ---
