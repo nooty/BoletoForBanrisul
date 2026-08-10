@@ -16,8 +16,33 @@ namespace BoletoForBanrisul.Report.Utils
         /// </summary>
         /// <param name="code">The value to encode as a barcode.</param>
         /// <returns>A "data:image/svg+xml;base64,..." URI containing the rendered barcode.</returns>
+        /// <exception cref="ArgumentException">
+        /// <paramref name="code"/> is empty, holds anything other than digits, or has an odd number
+        /// of them.
+        /// </exception>
         public static string GenerateBarcodeAsSvg(string code)
         {
+            // Interleaved 2 of 5 encodes digits in pairs, so a non-numeric or odd-length code has no
+            // representation at all. ZXing rejects these as well, but with an English message and no
+            // ParamName; validating here names the argument and keeps the wording consistent with
+            // the rest of the library.
+            if (string.IsNullOrEmpty(code))
+            {
+                throw new ArgumentException("O código de barras não foi informado.", nameof(code));
+            }
+
+            if (!IsAllDigits(code))
+            {
+                throw new ArgumentException(
+                    $"O código de barras deve conter apenas dígitos, mas recebeu \"{code}\".", nameof(code));
+            }
+
+            if (code.Length % 2 != 0)
+            {
+                throw new ArgumentException(
+                    $"O código de barras deve ter uma quantidade par de dígitos, mas recebeu {code.Length}.", nameof(code));
+            }
+
             // Dimensions converted to pixels, based on 96 DPI, matching the 103mm x 13mm printed
             // size. Interleaved 2 of 5 spreads the 44 digits over 405 modules, wider than the ~389
             // requested here, so ZXing keeps its natural width and the template's CSS scales it back
@@ -46,8 +71,16 @@ namespace BoletoForBanrisul.Report.Utils
         /// </summary>
         /// <param name="code">The value to encode as a QR code.</param>
         /// <returns>A "data:image/svg+xml;base64,..." URI containing the rendered QR code.</returns>
+        /// <exception cref="ArgumentException"><paramref name="code"/> is empty.</exception>
         public static string GenerateQRCodeAsSvg(string code)
         {
+            // QR takes arbitrary text, so emptiness is the only thing to rule out. Same reasoning as
+            // the barcode above: ZXing catches it too, just not as an argument error of this library.
+            if (string.IsNullOrEmpty(code))
+            {
+                throw new ArgumentException("O conteúdo do QR Code não foi informado.", nameof(code));
+            }
+
             // Dimensions converted to pixels, based on 96 DPI.
             int sizeInPixels = (int)(25 * 96 / 25.4); // ~94 pixels for 25mm.
 
@@ -64,6 +97,24 @@ namespace BoletoForBanrisul.Report.Utils
             };
 
             return EncodeAsSvgDataUri(writer, code);
+        }
+
+        /// <summary>
+        /// Whether every character is an ASCII digit. Deliberately narrower than
+        /// <see cref="char.IsDigit(char)"/>, which also accepts digits from other scripts that
+        /// Interleaved 2 of 5 has no symbol for.
+        /// </summary>
+        private static bool IsAllDigits(string value)
+        {
+            foreach (char character in value)
+            {
+                if (character < '0' || character > '9')
+                {
+                    return false;
+                }
+            }
+
+            return true;
         }
 
         /// <summary>

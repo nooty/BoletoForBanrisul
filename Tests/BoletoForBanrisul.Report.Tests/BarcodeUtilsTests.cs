@@ -115,6 +115,47 @@ namespace BoletoForBanrisul.Report.Tests
             }
         }
 
+        [Theory]
+        [InlineData(null)]
+        [InlineData("")]
+        public void GenerateBarcodeAsSvg_WithNoCode_Throws(string? code)
+        {
+            var exception = Assert.Throws<ArgumentException>(() => BarcodeUtils.GenerateBarcodeAsSvg(code!));
+
+            Assert.Equal("code", exception.ParamName);
+        }
+
+        [Theory]
+        [InlineData("0419886110000015050210010000001000064452404X")]  // a letter
+        [InlineData("04198861100000150502100100000010000644524 40")] // a space
+        [InlineData("٠٤١٩٨٨٦١١٠٠٠٠٠١٥٠٥٠٢١٠٠١٠٠٠٠٠٠١٠٠٠٠٦٤٤٥٢٤٠٤٠")]  // Arabic-Indic digits
+        public void GenerateBarcodeAsSvg_WithANonNumericCode_Throws(string code)
+        {
+            var exception = Assert.Throws<ArgumentException>(() => BarcodeUtils.GenerateBarcodeAsSvg(code));
+
+            Assert.Equal("code", exception.ParamName);
+        }
+
+        [Fact]
+        public void GenerateBarcodeAsSvg_WithAnOddNumberOfDigits_Throws()
+        {
+            // Interleaved 2 of 5 has no symbol for a lone digit, so an odd length cannot be encoded.
+            var exception = Assert.Throws<ArgumentException>(
+                () => BarcodeUtils.GenerateBarcodeAsSvg(BarcodePayload.Substring(1)));
+
+            Assert.Equal("code", exception.ParamName);
+        }
+
+        [Theory]
+        [InlineData(null)]
+        [InlineData("")]
+        public void GenerateQRCodeAsSvg_WithNoCode_Throws(string? code)
+        {
+            var exception = Assert.Throws<ArgumentException>(() => BarcodeUtils.GenerateQRCodeAsSvg(code!));
+
+            Assert.Equal("code", exception.ParamName);
+        }
+
         private static string DecodeSvg(string dataUri)
         {
             const string prefix = "data:image/svg+xml;base64,";
