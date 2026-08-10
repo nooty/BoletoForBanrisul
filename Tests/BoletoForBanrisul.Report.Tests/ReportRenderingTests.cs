@@ -124,7 +124,37 @@ namespace BoletoForBanrisul.Report.Tests
             await report.PrintAsync(CreateBoleto());
 
             Assert.Contains("class=\"barcode\"", recorder.LastHtml);
-            Assert.Contains("data:image/png;base64,", recorder.LastHtml);
+            // RazorLight HTML-encodes '+' as "&#x2B;" inside attribute values (a no-op once a browser or
+            // PDF renderer parses the HTML), so the literal "svg+xml" substring never appears verbatim here.
+            Assert.Contains("data:image/svg", recorder.LastHtml);
+        }
+
+        [Fact]
+        public async Task PrintAsync_WithNoPix_DoesNotRenderThePixCell()
+        {
+            var recorder = new RecordingPdfConverter();
+            var report = new BoletoReport(CreateSettings(), recorder);
+
+            await report.PrintAsync(CreateBoleto());
+
+            Assert.DoesNotContain("Pagar com PIX", recorder.LastHtml);
+        }
+
+        [Fact]
+        public async Task PrintAsync_WithPix_RendersThePixCell()
+        {
+            var recorder = new RecordingPdfConverter();
+            var boleto = CreateBoleto();
+            boleto.Titulo.Hibrido = new Hibrido
+            {
+                CopiaCola = "00020126580014BR.GOV.BCB.PIX0136123e4567-e12b-12d1-a456-426655440000520400005303986540510.005802BR5913Fulano de Tal6008BRASILIA62070503***6304ABCD"
+            };
+            var report = new BoletoReport(CreateSettings(), recorder);
+
+            await report.PrintAsync(boleto);
+
+            Assert.Contains("pix\"", recorder.LastHtml);
+            Assert.Contains("Pagar com PIX", recorder.LastHtml);
         }
 
         [Fact]

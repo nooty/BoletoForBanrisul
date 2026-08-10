@@ -72,10 +72,7 @@ The component uses the ChromiumHtmlToPdfLib library to generate boleto PDFs via 
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="8.0.2" />
     <PackageReference Include="ChromeHtmlToPdf" Version="4.2.10" />
     <PackageReference Include="RazorLight" Version="2.3.1" />
-    <PackageReference Include="SkiaSharp" Version="2.88.9" />
-    <!-- The Linux natives ship in their own package; without it libSkiaSharp.so is missing at runtime. -->
-    <PackageReference Include="SkiaSharp.NativeAssets.Linux" Version="2.88.9" />
-    <PackageReference Include="ZXing.Net.Bindings.SkiaSharp" Version="0.16.14" />
+    <PackageReference Include="ZXing.Net" Version="0.16.11" />
   </ItemGroup>
 
 </Project>

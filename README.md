@@ -490,7 +490,8 @@ Each line earns its place:
 - **The fonts** matter because the bundled template asks for Arial. Without them fontconfig
   substitutes whatever is at hand and the fields shift out of their boxes — a defect that shows up
   only in the rendered PDF, never as an error.
-- **`fontconfig`** is also required by SkiaSharp, which generates the QR code.
+- **`fontconfig`** is what registers the installed fonts (`fc-cache -f`) so Chromium can find them; the
+  barcode and QR code themselves are generated as fully managed SVG, with no native image dependency.
 - **ICU and `DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=false`** are both required, and so is
   `icu-data-full`. Amounts are formatted with `new CultureInfo("pt-BR")`. The Alpine base image ships
   no ICU and sets the flag to `true`, and in that mode the constructor throws

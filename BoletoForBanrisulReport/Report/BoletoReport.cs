@@ -182,10 +182,10 @@ namespace BoletoForBanrisul.Report
                 LogoPath = string.IsNullOrEmpty(_settings.LogoFilePath) ?
                     GetBase64Image(GetLogoFromResource()) :
                     GetBase64Image(File.ReadAllBytes(_settings.LogoFilePath)),
-                Barcode = BarcodeUtils.GenerateBarcodeAsBase64(barCode),
+                Barcode = BarcodeUtils.GenerateBarcodeAsSvg(barCode),
                 DigitableLine = BoletoHelper.FormatDigitableLine(digitableLine),
                 QRCode = !string.IsNullOrEmpty(boleto.Titulo.Hibrido?.CopiaCola) ?
-                    BarcodeUtils.GenerateQRCodeAsBase64(boleto.Titulo.Hibrido?.CopiaCola ?? "") : "",
+                    BarcodeUtils.GenerateQRCodeAsSvg(boleto.Titulo.Hibrido?.CopiaCola ?? "") : "",
                 PaymentLocation = _settings.PaymentLocation,
                 Beneficiary = _settings.Beneficiary,
                 Boleto = boleto

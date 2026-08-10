@@ -1,85 +1,89 @@
-﻿using SkiaSharp;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Runtime.InteropServices;
 using System.Text;
-using System.Threading.Tasks;
 using ZXing;
 using ZXing.Common;
 
 namespace BoletoForBanrisul.Report.Utils
 {
     /// <summary>
-    /// Classe utilitária para gerar códigos de barras e QR Codes em formato Base64.
+    /// Utility class for generating barcode and QR code images as SVG data URIs.
     /// </summary>
     public static class BarcodeUtils
-	{
+    {
         /// <summary>
-        /// Gera um código de barras CODE 128 em formato Base64 a partir de um código fornecido.
+        /// Generates a CODE 128 barcode from the given code, encoded as an SVG data URI.
         /// </summary>
-        /// <param name="code">O código a ser convertido em um código de barras.</param>
-        /// <returns>Uma string Base64 representando a imagem do código de barras gerado.</returns>
-        public static string GenerateBarcodeAsBase64(string code)
-		{
-			// Conversão das dimensões para pixels (com base em 96 DPI).
-			int widthInPixels = (int)(103 * 96 / 25.4); // Aproximadamente 389 pixels.
-			int heightInPixels = (int)(13 * 96 / 25.4); // Aproximadamente 49 pixels.
-
-			var barcodeWriter = new ZXing.SkiaSharp.BarcodeWriter
-			{
-				Format = BarcodeFormat.CODE_128,
-				Options = new EncodingOptions
-				{
-					Height = heightInPixels,
-					Width = widthInPixels,
-					Margin = 0,
-					NoPadding = true,
-					PureBarcode = true
-				}
-			};
-
-			using (var barcodeImage = barcodeWriter.Write(code))
-			{
-				using (var image = SKImage.FromBitmap(barcodeImage))
-				using (var data = image.Encode(SKEncodedImageFormat.Png, 100))
-				{
-					return $"data:image/png;base64,{Convert.ToBase64String(data.ToArray())}";
-				}
-			}
-		}
-
-        /// <summary>
-        /// Gera um QR Code em formato Base64 a partir de um código fornecido.
-        /// </summary>
-        /// <param name="code">O código a ser convertido em um QR Code.</param>
-        /// <returns>Uma string Base64 representando a imagem do QR Code gerado.</returns>
-        public static string GenerateQRCodeAsBase64(string code)
+        /// <param name="code">The value to encode as a barcode.</param>
+        /// <returns>A "data:image/svg+xml;base64,..." URI containing the rendered barcode.</returns>
+        public static string GenerateBarcodeAsSvg(string code)
         {
-            // Conversão das dimensões para pixels (com base em 96 DPI).
-            int sizeInPixels = (int)(25 * 96 / 25.4); // Aproximadamente 94 pixels para 25mm.
+            // Dimensions converted to pixels, based on 96 DPI.
+            int widthInPixels = (int)(103 * 96 / 25.4); // ~389 pixels.
+            int heightInPixels = (int)(13 * 96 / 25.4); // ~49 pixels.
 
-            var qrCodeWriter = new ZXing.SkiaSharp.BarcodeWriter
+            var writer = new BarcodeWriterSvg
+            {
+                Format = BarcodeFormat.CODE_128,
+                Options = new EncodingOptions
+                {
+                    Height = heightInPixels,
+                    Width = widthInPixels,
+                    Margin = 0,
+                    NoPadding = true,
+                    PureBarcode = true
+                }
+            };
+
+            return EncodeAsSvgDataUri(writer, code);
+        }
+
+        /// <summary>
+        /// Generates a QR code from the given code, encoded as an SVG data URI.
+        /// </summary>
+        /// <param name="code">The value to encode as a QR code.</param>
+        /// <returns>A "data:image/svg+xml;base64,..." URI containing the rendered QR code.</returns>
+        public static string GenerateQRCodeAsSvg(string code)
+        {
+            // Dimensions converted to pixels, based on 96 DPI.
+            int sizeInPixels = (int)(25 * 96 / 25.4); // ~94 pixels for 25mm.
+
+            var writer = new BarcodeWriterSvg
             {
                 Format = BarcodeFormat.QR_CODE,
                 Options = new EncodingOptions
                 {
                     Height = sizeInPixels,
                     Width = sizeInPixels,
-                    Margin = 0, 
+                    Margin = 0,
                     NoPadding = true
                 }
             };
 
-            using (var qrCodeImage = qrCodeWriter.Write(code))
-            {
-                using (var image = SKImage.FromBitmap(qrCodeImage))
-                using (var data = image.Encode(SKEncodedImageFormat.Png, 100))
-                {
-                    return $"data:image/png;base64,{Convert.ToBase64String(data.ToArray())}";
-                }
-            }
+            return EncodeAsSvgDataUri(writer, code);
         }
 
+        /// <summary>
+        /// Encodes <paramref name="code"/> with the given writer, patches in
+        /// <c>preserveAspectRatio="none"</c> and wraps the result as a base64 SVG data URI.
+        /// </summary>
+        private static string EncodeAsSvgDataUri(BarcodeWriterSvg writer, string code)
+        {
+            string svg = writer.Write(code).ToString();
+
+            // preserveAspectRatio="none" is required: with NoPadding=true the encoded matrix
+            // (especially CODE_128) is narrower than the requested Width/Height, and the report
+            // template stretches the <img> to a fixed mm size via CSS. The SVG default
+            // (xMidYMid meet) would instead letterbox and shrink the image inside that box.
+            // "<svg " occurs exactly once in ZXing's output - the DOCTYPE only contains
+            // "svg PUBLIC" / "svg11.dtd", neither of which matches this pattern.
+            // The guard keeps a future ZXing that emits its own preserveAspectRatio from ending up
+            // with the attribute twice: the data URI is parsed as XML, where a duplicate attribute
+            // is fatal and would drop the image entirely rather than merely misplace it.
+            if (svg.IndexOf("preserveAspectRatio", StringComparison.Ordinal) < 0)
+            {
+                svg = svg.Replace("<svg ", "<svg preserveAspectRatio=\"none\" ");
+            }
+
+            return $"data:image/svg+xml;base64,{Convert.ToBase64String(Encoding.UTF8.GetBytes(svg))}";
+        }
     }
 }
