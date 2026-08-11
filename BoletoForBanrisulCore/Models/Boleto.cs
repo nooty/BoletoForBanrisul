@@ -157,6 +157,16 @@ namespace BoletoForBanrisul.Core.Models
         /// <c>"Instrucoes.Desconto.Data"</c>); <c>MiniValidation</c> prefixes it with the path to reach this
         /// <see cref="Titulo"/> itself, so the final reported path is <c>"Titulo.Instrucoes.Desconto.Data"</c>.
         /// </summary>
+        /// <remarks>
+        /// Every nested object is reached through <c>?.</c>, including the ones declared non-nullable with an
+        /// initializer (<see cref="Instrucoes"/>, <see cref="Instrucoes.Juros"/>, <see cref="PagParcial"/>,
+        /// <see cref="Rateio.Beneficiarios"/>). That is not defensive habit: <c>MiniValidation</c> calls this
+        /// method <b>unconditionally</b>, before and regardless of the <see cref="RequiredAttribute"/> results
+        /// on those same properties, so a <c>null</c> arriving from the wire (this type also deserializes the
+        /// bank's responses — see the <c>&lt;remarks&gt;</c> on <see cref="Titulo"/>) would throw here and
+        /// abort the whole graph's validation, swallowing every error including the <c>[Required]</c> that was
+        /// about to name the missing object. Skipping the rule instead lets that attribute report it.
+        /// </remarks>
         /// <inheritdoc />
         public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
         {
@@ -201,7 +211,7 @@ namespace BoletoForBanrisul.Core.Models
         /// <summary>SPEC: <c>desconto.data</c> "Deve ser menor ou igual a Data de Vencimento. Deve ser maior ou igual a Data de Emissão."</summary>
         private void ValidateDiscountDateWindow(List<ValidationResult> results)
         {
-            var data = Instrucoes.Desconto?.Data;
+            var data = Instrucoes?.Desconto?.Data;
             if (data is not DateTime discountDate)
                 return;
 
@@ -216,7 +226,7 @@ namespace BoletoForBanrisul.Core.Models
         /// <summary>SPEC: <c>juros.data</c> "Deve ser maior que a data de vencimento" (strictly later).</summary>
         private void ValidateInterestDateAfterDueDate(List<ValidationResult> results)
         {
-            var data = Instrucoes.Juros.Data;
+            var data = Instrucoes?.Juros?.Data;
             if (data is not DateTime interestDate)
                 return;
 
@@ -231,7 +241,7 @@ namespace BoletoForBanrisul.Core.Models
         /// <summary>SPEC: <c>multa.data</c> "Deve ser maior que a Data de Vencimento" (strictly later).</summary>
         private void ValidateFineDateAfterDueDate(List<ValidationResult> results)
         {
-            var data = Instrucoes.Multa?.Data;
+            var data = Instrucoes?.Multa?.Data;
             if (data is not DateTime fineDate)
                 return;
 
@@ -250,7 +260,7 @@ namespace BoletoForBanrisul.Core.Models
         /// </summary>
         private void ValidateAbatementAgainstNominalValue(List<ValidationResult> results)
         {
-            var valor = Instrucoes.Abatimento?.Valor;
+            var valor = Instrucoes?.Abatimento?.Valor;
             if (valor is not decimal abatementValue)
                 return;
 
@@ -270,7 +280,7 @@ namespace BoletoForBanrisul.Core.Models
         /// </summary>
         private void ValidateProtestDeadline(List<ValidationResult> results)
         {
-            var protesto = Instrucoes.Protesto;
+            var protesto = Instrucoes?.Protesto;
             if (protesto is null)
                 return;
 
@@ -309,7 +319,7 @@ namespace BoletoForBanrisul.Core.Models
         /// </summary>
         private void ValidatePartialPaymentAuthorization(List<ValidationResult> results)
         {
-            if (PagParcial.Autoriza != Types.AutorizacaoPagamentoParcial.Autoriza)
+            if (PagParcial?.Autoriza != Types.AutorizacaoPagamentoParcial.Autoriza)
                 return;
 
             if (Especie != Types.Especie.CartaoCredito)
@@ -363,7 +373,7 @@ namespace BoletoForBanrisul.Core.Models
         /// <summary>INFERRED.</summary>
         private void ValidateSharingValueAgainstNominalValue(List<ValidationResult> results)
         {
-            if (Rateio is null || Rateio.TipoValor != Types.TipoValor.Valor)
+            if (Rateio?.Beneficiarios is null || Rateio.TipoValor != Types.TipoValor.Valor)
                 return;
 
             decimal total = Rateio.Beneficiarios.Sum(b => b.Valor ?? 0m);
@@ -860,6 +870,11 @@ namespace BoletoForBanrisul.Core.Models
                     "TipoValor must be Percentual when Codigo is ValorCobradoPagador.",
                     new[] { nameof(TipoValor) }));
             }
+
+            // Same reason as Titulo.Validate's own null-conditional accesses: this runs unconditionally, so a
+            // null list from the wire has to skip the rules below and let [Required] report it.
+            if (Beneficiarios is null)
+                return results;
 
             if (TipoValor == TipoValor.Valor)
             {

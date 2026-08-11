@@ -4,6 +4,7 @@ using BoletoForBanrisul.Core.Models.Types;
 using BoletoForBanrisul.Core.Validation;
 using System.ComponentModel.DataAnnotations;
 using System.Reflection;
+using System.Text.Json;
 
 namespace BoletoForBanrisul.Core.Tests.Validation
 {
@@ -1263,6 +1264,63 @@ namespace BoletoForBanrisul.Core.Tests.Validation
             });
 
             Assert.Equal(nameof(Titulo.NotasFiscais), Assert.Single(error.MemberNames));
+        }
+
+        // --- A null where a [Required] nested object belongs is reported, not thrown on. ---
+        //
+        // MiniValidation calls IValidatableObject.Validate() unconditionally, before and regardless of the
+        // [Required] results on the very properties those rules read (that is the whole point of delegating to
+        // it - see RecursiveValidator's <remarks>). So a cross-field rule that dereferenced a null nested
+        // object would throw out of the validation pass and take every other error with it, including the
+        // [Required] that was about to name the missing object. These are the properties declared
+        // non-nullable with an initializer, which a response deserializing into this same Titulo can still
+        // set to null: each must come back as its own [Required] error and nothing else.
+
+        [Fact]
+        public void NullInstrucoes_IsReportedAsRequired()
+        {
+            var error = SingleErrorFor(t => t.Instrucoes = null!);
+
+            Assert.Equal(nameof(Titulo.Instrucoes), Assert.Single(error.MemberNames));
+        }
+
+        [Fact]
+        public void NullJuros_IsReportedAsRequired()
+        {
+            var error = SingleErrorFor(t => t.Instrucoes.Juros = null!);
+
+            Assert.Equal("Instrucoes.Juros", Assert.Single(error.MemberNames));
+        }
+
+        [Fact]
+        public void NullPagParcial_IsReportedAsRequired()
+        {
+            var error = SingleErrorFor(t => t.PagParcial = null!);
+
+            Assert.Equal(nameof(Titulo.PagParcial), Assert.Single(error.MemberNames));
+        }
+
+        [Fact]
+        public void NullRateioBeneficiarios_IsReportedAsRequired()
+        {
+            var error = SingleErrorFor(t => t.Rateio!.Beneficiarios = null!);
+
+            Assert.Equal("Rateio.Beneficiarios", Assert.Single(error.MemberNames));
+        }
+
+        [Fact]
+        public void NullNestedObjectsFromTheWire_AreReportedRatherThanThrown()
+        {
+            // The vector the rules above are actually protecting against: this shape does not come from a
+            // caller building a Titulo by hand, it comes from JSON. "instrucoes": { "juros": null } is the
+            // exact payload that used to throw out of Titulo.Validate before any error was collected.
+            var boleto = JsonSerializer.Deserialize<Boleto>(
+                """{"titulo":{"seu_numero":"64452-1","instrucoes":{"juros":null}}}""",
+                new JsonSerializerOptions { PropertyNamingPolicy = new SnakeCaseLowerNamingPolicy() })!;
+
+            var paths = PathsOf(ErrorsOf(boleto));
+
+            Assert.Contains("Titulo.Instrucoes.Juros", paths);
         }
     }
 }
