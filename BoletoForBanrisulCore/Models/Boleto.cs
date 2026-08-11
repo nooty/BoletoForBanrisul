@@ -22,24 +22,18 @@ namespace BoletoForBanrisul.Core.Models
     /// bank) barcode/status information.
     /// </summary>
     /// <remarks>
-    /// <b>This class is shared between the request and the response.</b> <c>CreateBoletoResponse.Titulo</c>
-    /// and <c>GetBoletoResponse.Titulo</c> both deserialize into this same <see cref="Titulo"/> type, but
-    /// <see cref="Validation.RecursiveValidator"/> only ever runs on the root of an outgoing
-    /// <see cref="Boleto"/> request (see <c>BoletoClient.CreateBoletoAsync</c>). What actually protects a
-    /// response round-trip is that call graph, not the attributes below — but the attributes must not fight
-    /// it: a bank-returned ("BR") property — <see cref="Beneficiario"/>, <see cref="CodigoBarras"/>,
-    /// <see cref="LinhaDigitavel"/>, the <c>Situacao*</c> properties, <see cref="Carteira"/>,
-    /// <see cref="Operacoes"/> — must never get <see cref="RequiredAttribute"/> or a cross-field
-    /// required-ness rule in <see cref="Validate"/>, because deserializing a query response that legitimately
-    /// omits one of them would then have no path that ever validates it. Format-only attributes (length,
-    /// character class, numeric range) are safe on both paths and are used freely below.
+    /// <b>Shared between the request and the response:</b> both responses deserialize into this same type,
+    /// while <see cref="Validation.RecursiveValidator"/> only runs on an outgoing request. So a bank-returned
+    /// property (<see cref="Beneficiario"/>, <see cref="CodigoBarras"/>, <see cref="LinhaDigitavel"/>, the
+    /// <c>Situacao*</c> ones, <see cref="Carteira"/>, <see cref="Operacoes"/>) must never get
+    /// <see cref="RequiredAttribute"/> or a required-ness rule in <see cref="Validate"/> — a response that
+    /// legitimately omits it would have no path that ever validates. Format-only attributes are safe on both.
     /// </remarks>
     public class Titulo : IValidatableObject
     {
         /// <summary>
-        /// Not required and not exactly 10 digits, even though the bank's own response schema requires
-        /// exactly 10: the request is looser than the response (the bank's own "Homologado com nosso número"
-        /// example sends <c>"264"</c>, 3 digits) and the request wins where the two disagree.
+        /// Up to 10 digits, not exactly 10 as the response schema requires: the request is looser (the bank's
+        /// own sample sends <c>"264"</c>) and the request wins where the two disagree.
         /// </summary>
         [StringLength(10)]
         [RegularExpression(BanrisulPatterns.DigitsUpTo10)]
@@ -52,7 +46,7 @@ namespace BoletoForBanrisul.Core.Models
         [TruncateString(13)]
         public string SeuNumero { get; set; } = "";
 
-        /// <summary>Due date of the bank slip. Required, but a non-nullable <see cref="DateTime"/> cannot carry <see cref="RequiredAttribute"/>; see <see cref="Validate"/> for the <c>!= default</c> check.</summary>
+        /// <summary>Due date. Required, but a non-nullable <see cref="DateTime"/> cannot carry <see cref="RequiredAttribute"/>; checked in <see cref="Validate"/>.</summary>
         [JsonConverter(typeof(DateOnlyConverter))]
         public DateTime DataVencimento { get; set; }
 
@@ -65,7 +59,7 @@ namespace BoletoForBanrisul.Core.Models
         [JsonConverter(typeof(EspecieConverter))]
         public Especie Especie { get; set; } = Especie.Outros;
 
-        /// <summary>Issue date of the bank slip. Required, but a non-nullable <see cref="DateTime"/> cannot carry <see cref="RequiredAttribute"/>; see <see cref="Validate"/> for the <c>!= default</c> check.</summary>
+        /// <summary>Issue date. Required, but a non-nullable <see cref="DateTime"/> cannot carry <see cref="RequiredAttribute"/>; checked in <see cref="Validate"/>.</summary>
         [JsonConverter(typeof(DateOnlyConverter))]
         public DateTime DataEmissao { get; set; }
 
@@ -103,69 +97,44 @@ namespace BoletoForBanrisul.Core.Models
         [MaxLength(2)]
         public List<NotaFiscal>? NotasFiscais { get; set; }
 
-        /// <summary>
-        /// Retornado pelo banco.
-        /// </summary>
+        /// <summary>Returned by the bank.</summary>
         public Beneficiario? Beneficiario { get; set; }
 
-        /// <summary>
-        /// Retornado pelo banco.
-        /// </summary>
+        /// <summary>Returned by the bank.</summary>
         public string? CodigoBarras { get; set; }
 
-        /// <summary>
-        /// Retornado pelo banco.
-        /// </summary>
+        /// <summary>Returned by the bank.</summary>
         public string? LinhaDigitavel { get; set; }
 
-        /// <summary>
-        /// Retornado pelo banco.
-        /// </summary>
+        /// <summary>Returned by the bank.</summary>
         [JsonConverter(typeof(SituacaoBanrisulConverter))]
         public SituacaoBanrisul? SituacaoBanrisul { get; set; }
 
-        /// <summary>
-        /// Retornado pelo banco.
-        /// </summary>
+        /// <summary>Returned by the bank.</summary>
         [JsonConverter(typeof(SituacaoCipConverter))]
         public SituacaoCip? SituacaoCip { get; set; }
 
-        /// <summary>
-        /// Retornado pelo banco.
-        /// </summary>
+        /// <summary>Returned by the bank.</summary>
         public SituacaoPagamento? SituacaoPagamento { get; set; }
 
-        /// <summary>
-        /// Retornado pelo banco.
-        /// </summary>
+        /// <summary>Returned by the bank.</summary>
         public Carteira? Carteira { get; set; }
 
-        /// <summary>
-        /// Retornado pelo banco.
-        /// </summary>
+        /// <summary>Returned by the bank.</summary>
         public Operacoes? Operacoes { get; set; }
 
         /// <summary>
-        /// Cross-field rules that need more than one of <see cref="Titulo"/>'s own properties, or that need
-        /// this object's own dates/amount together with a nested instruction. Rules about the internal
-        /// consistency of a single nested object live on that object's own
-        /// <see cref="IValidatableObject.Validate"/> instead (see <see cref="Pagador"/>, <see cref="Sacador"/>,
-        /// <see cref="Juros"/>, <see cref="Multa"/>, <see cref="Desconto"/>, <see cref="Rateio"/> and
-        /// <see cref="PagamentoParcial"/>) — <see cref="Validation.RecursiveValidator"/> walks into all of
-        /// them and aggregates every error from the whole graph in one pass, so splitting the rules this way
-        /// does not lose anything. Every error reported here about a nested member uses a dotted path (e.g.
-        /// <c>"Instrucoes.Desconto.Data"</c>); <c>MiniValidation</c> prefixes it with the path to reach this
-        /// <see cref="Titulo"/> itself, so the final reported path is <c>"Titulo.Instrucoes.Desconto.Data"</c>.
+        /// Rules needing more than one of this object's properties, or its dates/amount together with a
+        /// nested instruction. Rules internal to a single nested object live on that object's own
+        /// <see cref="IValidatableObject.Validate"/>; <see cref="Validation.RecursiveValidator"/> walks into
+        /// all of them in one pass. Nested members are blamed by dotted path (<c>"Instrucoes.Desconto.Data"</c>),
+        /// which MiniValidation then prefixes to reach this <see cref="Titulo"/>.
         /// </summary>
         /// <remarks>
-        /// Every nested object is reached through <c>?.</c>, including the ones declared non-nullable with an
-        /// initializer (<see cref="Instrucoes"/>, <see cref="Instrucoes.Juros"/>, <see cref="PagParcial"/>,
-        /// <see cref="Rateio.Beneficiarios"/>). That is not defensive habit: <c>MiniValidation</c> calls this
-        /// method <b>unconditionally</b>, before and regardless of the <see cref="RequiredAttribute"/> results
-        /// on those same properties, so a <c>null</c> arriving from the wire (this type also deserializes the
-        /// bank's responses — see the <c>&lt;remarks&gt;</c> on <see cref="Titulo"/>) would throw here and
-        /// abort the whole graph's validation, swallowing every error including the <c>[Required]</c> that was
-        /// about to name the missing object. Skipping the rule instead lets that attribute report it.
+        /// The <c>?.</c> on properties the compiler considers non-nullable is deliberate: MiniValidation calls
+        /// this method unconditionally, regardless of the <c>[Required]</c> results on those same properties,
+        /// so a <c>null</c> from the wire would throw here and abort the whole graph's validation instead of
+        /// letting <c>[Required]</c> report it.
         /// </remarks>
         /// <inheritdoc />
         public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
@@ -187,7 +156,7 @@ namespace BoletoForBanrisul.Core.Models
             return results;
         }
 
-        /// <summary>SPEC: <see cref="DataVencimento"/> and <see cref="DataEmissao"/> are required; since neither is nullable, <see cref="RequiredAttribute"/> cannot express that, so it is checked here as "not the default value" instead.</summary>
+        /// <summary>SPEC: both dates are required; neither is nullable, so "required" is checked as "not the default value".</summary>
         private void ValidateRequiredDates(List<ValidationResult> results)
         {
             if (DataVencimento == default)
@@ -208,7 +177,7 @@ namespace BoletoForBanrisul.Core.Models
             }
         }
 
-        /// <summary>SPEC: <c>desconto.data</c> "Deve ser menor ou igual a Data de Vencimento. Deve ser maior ou igual a Data de Emissão."</summary>
+        /// <summary>SPEC (<c>desconto.data</c>): between the issue and due dates, inclusive on both ends.</summary>
         private void ValidateDiscountDateWindow(List<ValidationResult> results)
         {
             var data = Instrucoes?.Desconto?.Data;
@@ -223,7 +192,7 @@ namespace BoletoForBanrisul.Core.Models
             }
         }
 
-        /// <summary>SPEC: <c>juros.data</c> "Deve ser maior que a data de vencimento" (strictly later).</summary>
+        /// <summary>SPEC (<c>juros.data</c>): strictly later than the due date.</summary>
         private void ValidateInterestDateAfterDueDate(List<ValidationResult> results)
         {
             var data = Instrucoes?.Juros?.Data;
@@ -238,7 +207,7 @@ namespace BoletoForBanrisul.Core.Models
             }
         }
 
-        /// <summary>SPEC: <c>multa.data</c> "Deve ser maior que a Data de Vencimento" (strictly later).</summary>
+        /// <summary>SPEC (<c>multa.data</c>): strictly later than the due date.</summary>
         private void ValidateFineDateAfterDueDate(List<ValidationResult> results)
         {
             var data = Instrucoes?.Multa?.Data;
@@ -254,9 +223,9 @@ namespace BoletoForBanrisul.Core.Models
         }
 
         /// <summary>
-        /// PARTIAL: the bank's own rule ("RN soma excede valor boleto") checks the abatement against
-        /// everything accumulated on the live bank slip server-side, which this library cannot see. This is
-        /// the subset that is checkable locally: a single abatement cannot by itself exceed the nominal value.
+        /// PARTIAL: the bank's rule ("RN soma excede valor boleto") checks the abatement against everything
+        /// accumulated server-side, which this library cannot see. Only the local subset is checked here: one
+        /// abatement cannot by itself exceed the nominal value.
         /// </summary>
         private void ValidateAbatementAgainstNominalValue(List<ValidationResult> results)
         {
@@ -273,10 +242,9 @@ namespace BoletoForBanrisul.Core.Models
         }
 
         /// <summary>
-        /// SPEC (<c>protesto.prazo</c> description): required when <see cref="Codigo"/> is
-        /// <see cref="CodigoProtesto.ProtestarDiasCorridos"/> or <see cref="CodigoProtesto.NegativarDiasCorridos"/>.
-        /// <c>Prazo == 0</c> is immediate protest and is only accepted for a bank slip already past due;
-        /// otherwise <c>Prazo</c> must be at least 3.
+        /// SPEC (<c>protesto.prazo</c>): required for <see cref="CodigoProtesto.ProtestarDiasCorridos"/> and
+        /// <see cref="CodigoProtesto.NegativarDiasCorridos"/>. <c>0</c> means immediate protest and is only
+        /// accepted past due; otherwise it must be at least 3.
         /// </summary>
         private void ValidateProtestDeadline(List<ValidationResult> results)
         {
@@ -313,9 +281,9 @@ namespace BoletoForBanrisul.Core.Models
         }
 
         /// <summary>
-        /// SPEC (<c>pag_parcial.autoriza</c> description): must always be <see cref="AutorizacaoPagamentoParcial.NaoAutoriza"/>,
-        /// except when <see cref="Especie"/> is <see cref="Types.Especie.CartaoCredito"/> (Rule 9), and must
-        /// always be <see cref="AutorizacaoPagamentoParcial.NaoAutoriza"/> when <see cref="Hibrido"/> is set (Rule 10).
+        /// SPEC (<c>pag_parcial.autoriza</c>): must be <see cref="AutorizacaoPagamentoParcial.NaoAutoriza"/>
+        /// unless <see cref="Especie"/> is <see cref="Types.Especie.CartaoCredito"/> (Rule 9), and always when
+        /// <see cref="Hibrido"/> is set (Rule 10).
         /// </summary>
         private void ValidatePartialPaymentAuthorization(List<ValidationResult> results)
         {
@@ -391,25 +359,17 @@ namespace BoletoForBanrisul.Core.Models
         [TruncateString(13)]
         public string Codigo { get; set; } = "";
 
-        /// <summary>
-        /// Retornado pelo banco.
-        /// </summary>
+        /// <summary>Returned by the bank.</summary>
         [JsonConverter(typeof(TipoPessoaConverter))]
         public TipoPessoa TipoPessoa { get; set; } = TipoPessoa.PessoaJuridica;
 
-        /// <summary>
-        /// Retornado pelo banco.
-        /// </summary>
+        /// <summary>Returned by the bank.</summary>
         public string CpfCnpj { get; set; } = "";
 
-        /// <summary>
-        /// Retornado pelo banco.
-        /// </summary>
+        /// <summary>Returned by the bank.</summary>
         public string Nome { get; set; } = "";
 
-        /// <summary>
-        /// Retornado pelo banco.
-        /// </summary>
+        /// <summary>Returned by the bank.</summary>
         public string NomeFantasia { get; set; } = "";
     }
 
@@ -458,10 +418,9 @@ namespace BoletoForBanrisul.Core.Models
         public Aceite Aceite { get; set; } = Aceite.Nao;
 
         /// <summary>
-        /// CPF/CNPJ check-digit validation: <see cref="CpfCnpj"/> must have the length required by
-        /// <see cref="TipoPessoa"/> (11 digits for CPF, 14 for CNPJ) and pass its check-digit algorithm. The
-        /// regular expression on <see cref="CpfCnpj"/> only enforces "11 or 14 digits", not which one is
-        /// right for the declared <see cref="TipoPessoa"/>, hence the cross-field check here.
+        /// CPF/CNPJ check digits, plus the length required by <see cref="TipoPessoa"/> (11 for CPF, 14 for
+        /// CNPJ): the regular expression only enforces "11 or 14 digits", not which one matches the declared
+        /// <see cref="TipoPessoa"/>.
         /// </summary>
         /// <inheritdoc />
         public IEnumerable<ValidationResult> Validate(ValidationContext validationContext) =>
@@ -479,9 +438,8 @@ namespace BoletoForBanrisul.Core.Models
         [TruncateString(14)]
         public string CpfCnpj { get; set; } = "";
 
-        // 40, not 45: the schema's maxLength for sacador.nome is 40 (identical fragment to pagador.nome,
-        // already 40 above). [TruncateString] is changed to match so the dead truncation path never
-        // contradicts the live [StringLength] rule; see also Test/Unit/TruncateStringTest.cs.
+        // 40, not 45: the schema's maxLength for sacador.nome is 40, and [TruncateString] must match
+        // [StringLength] so the truncation path never contradicts the live rule.
         [Required]
         [StringLength(40, MinimumLength = 1)]
         [RegularExpression(BanrisulPatterns.Text)]
@@ -524,12 +482,9 @@ namespace BoletoForBanrisul.Core.Models
     public class Juros : IValidatableObject
     {
         /// <summary>
-        /// Code for the interest instruction. <see cref="Types.CodigoJuros.Isento"/> is the default and is
-        /// deliberately not cross-checked against <see cref="Data"/>/<see cref="Valor"/>/<see cref="Taxa"/>
-        /// being unset: the schema does not require that, and this repository's own
-        /// <c>BoletoGenerator.GenerateBoleto1()</c> sets all three alongside <see cref="Types.CodigoJuros.Isento"/>.
-        /// Only <see cref="Types.CodigoJuros.ValorPorDia"/> and <see cref="Types.CodigoJuros.TaxaMensal"/> are
-        /// cross-checked, in <see cref="Validate"/>.
+        /// Interest code. <see cref="Types.CodigoJuros.Isento"/> is deliberately not cross-checked against
+        /// <see cref="Data"/>/<see cref="Valor"/>/<see cref="Taxa"/>: the schema does not require them to be
+        /// unset, and this repo's own <c>BoletoGenerator</c> sets all three alongside it.
         /// </summary>
         [EnumDataType(typeof(CodigoJuros), ErrorMessage = "Codigo must be one of the defined CodigoJuros values.")]
         public CodigoJuros Codigo { get; set; } = CodigoJuros.Isento;
@@ -548,11 +503,10 @@ namespace BoletoForBanrisul.Core.Models
         public decimal? Taxa { get; set; }
 
         /// <summary>
-        /// SPEC: <see cref="Types.CodigoJuros.ValorPorDia"/> requires <see cref="Valor"/> (and not <see cref="Taxa"/>);
-        /// <see cref="Types.CodigoJuros.TaxaMensal"/> requires <see cref="Taxa"/> (and not <see cref="Valor"/>).
-        /// The "required" half is SPEC (the schema's own field descriptions); the "must be unset" half is
-        /// INFERRED. Deliberately does <b>not</b> check <see cref="Types.CodigoJuros.Isento"/> — see the XML
-        /// doc on <see cref="Codigo"/>.
+        /// <see cref="Types.CodigoJuros.ValorPorDia"/> requires <see cref="Valor"/> and not <see cref="Taxa"/>;
+        /// <see cref="Types.CodigoJuros.TaxaMensal"/> the reverse. The "required" half is SPEC, the "must be
+        /// unset" half INFERRED. <see cref="Types.CodigoJuros.Isento"/> is skipped on purpose — see
+        /// <see cref="Codigo"/>.
         /// </summary>
         /// <inheritdoc />
         public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
@@ -641,13 +595,7 @@ namespace BoletoForBanrisul.Core.Models
         [JsonConverter(typeof(DecimalF2Converter))]
         public decimal? Taxa { get; set; }
 
-        /// <summary>
-        /// SPEC: <see cref="Types.CodigoDesconto.ValorFixoAteData"/> and
-        /// <see cref="Types.CodigoDesconto.ValorPorAntecipacaoDiaCorrido"/> require <see cref="Valor"/> (not
-        /// <see cref="Taxa"/>); <see cref="Types.CodigoDesconto.PercentualAteData"/> and
-        /// <see cref="Types.CodigoDesconto.PercentualSobreValorNominalDiaCorrido"/> require <see cref="Taxa"/>
-        /// (not <see cref="Valor"/>).
-        /// </summary>
+        /// <summary>SPEC: the fixed-value codes require <see cref="Valor"/> and not <see cref="Taxa"/>; the percentage codes the reverse.</summary>
         /// <inheritdoc />
         public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
         {
@@ -688,9 +636,7 @@ namespace BoletoForBanrisul.Core.Models
         [EnumDataType(typeof(CodigoProtesto), ErrorMessage = "Codigo must be one of the defined CodigoProtesto values.")]
         public CodigoProtesto Codigo { get; set; }
 
-        /// <summary>
-        /// Número de dias corridos após a data de vencimento para inicialização do processo de cobrança via protesto.
-        /// </summary>
+        /// <summary>Calendar days after the due date before the protest process starts.</summary>
         [Range(0, 99)]
         public int? Prazo { get; set; }
     }
@@ -700,9 +646,7 @@ namespace BoletoForBanrisul.Core.Models
         [EnumDataType(typeof(CodigoBaixa), ErrorMessage = "Codigo must be one of the defined CodigoBaixa values.")]
         public CodigoBaixa Codigo { get; set; }
 
-        /// <summary>
-        /// Número de dias corridos após a data de vencimento, que deverá ser baixado/devolvido para o Beneficiário.
-        /// </summary>
+        /// <summary>Calendar days after the due date before the bank slip is written off / returned to the beneficiary.</summary>
         [Range(0, 99)]
         public int Prazo { get; set; }
     }
@@ -715,9 +659,7 @@ namespace BoletoForBanrisul.Core.Models
         [EnumDataType(typeof(CodigoPagamentoParcial), ErrorMessage = "Codigo must be one of the defined CodigoPagamentoParcial values.")]
         public CodigoPagamentoParcial Codigo { get; set; } = CodigoPagamentoParcial.NaoAceitaDivergente;
 
-        /// <summary>
-        /// Quantidade de pagamentos parciais possíveis (opcional).
-        /// </summary>
+        /// <summary>How many partial payments are allowed (optional).</summary>
         [Range(0, 99)]
         public int? Quantidade { get; set; }
 
@@ -745,19 +687,15 @@ namespace BoletoForBanrisul.Core.Models
         public decimal? PercentualMax { get; set; }
 
         /// <summary>
-        /// SPEC: <see cref="Autoriza"/> == <see cref="AutorizacaoPagamentoParcial.Autoriza"/> requires
-        /// <see cref="Quantidade"/> to be set to at least 1. <see cref="Codigo"/> ==
-        /// <see cref="CodigoPagamentoParcial.ValorEntreMinimoEMaximo"/> requires <see cref="Tipo"/> to be
-        /// set. The rest is INFERRED and deliberately narrow — see the remarks below on what is
-        /// <b>not</b> checked.
+        /// SPEC: <see cref="AutorizacaoPagamentoParcial.Autoriza"/> requires <see cref="Quantidade"/> of at
+        /// least 1, and <see cref="CodigoPagamentoParcial.ValorEntreMinimoEMaximo"/> requires
+        /// <see cref="Tipo"/>. The rest is INFERRED and deliberately narrow.
         /// </summary>
         /// <remarks>
-        /// Does <b>not</b> implement: "<see cref="Tipo"/> only when <see cref="Codigo"/> is
-        /// <see cref="CodigoPagamentoParcial.ValorEntreMinimoEMaximo"/>", "both bounds required", or "all
-        /// bounds unset when <see cref="Codigo"/> is <see cref="CodigoPagamentoParcial.NaoAceitaDivergente"/>".
-        /// The bank's own "Cartão de Crédito" sample sends <c>codigo: 1 (QualquerValor), tipo: 2 (Valor),
-        /// valor_min: "1.50"</c> with no <c>valor_max</c> — every one of those three rules would reject that
-        /// real, successful payload. Left out on purpose; do not reintroduce them.
+        /// Does <b>not</b> require <see cref="Tipo"/> to imply a code, both bounds to be present, or all
+        /// bounds to be unset for <see cref="CodigoPagamentoParcial.NaoAceitaDivergente"/>: the bank's own
+        /// "Cartão de Crédito" sample (<c>codigo: 1, tipo: 2, valor_min: "1.50"</c>, no <c>valor_max</c>) is a
+        /// real successful payload that all three would reject. Do not reintroduce them.
         /// </remarks>
         /// <inheritdoc />
         public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
@@ -847,17 +785,14 @@ namespace BoletoForBanrisul.Core.Models
         public List<BeneficiarioRateio> Beneficiarios { get; set; } = new List<BeneficiarioRateio>();
 
         /// <summary>
-        /// SPEC: <see cref="Codigo"/> == <see cref="CodigoRateio.ValorCobradoPagador"/> requires
-        /// <see cref="TipoValor"/> == <see cref="Types.TipoValor.Percentual"/>. The rest is INFERRED.
+        /// SPEC: <see cref="CodigoRateio.ValorCobradoPagador"/> requires <see cref="TipoValor"/> to be
+        /// <see cref="Types.TipoValor.Percentual"/>. The rest is INFERRED.
         /// </summary>
         /// <remarks>
-        /// Deliberately does not copy the Santander sibling library's exact-equality rule for the shared
-        /// amount ("sharing values must sum to exactly the nominal value"): here
-        /// <see cref="CodigoRateio.ValorCobradoPagador"/> means "share of the amount charged to the payer",
-        /// which is not the registered nominal value, so an exact-equality check does not transfer. The sum
-        /// against <see cref="Titulo.ValorNominal"/> when <see cref="TipoValor"/> is
-        /// <see cref="Types.TipoValor.Valor"/> uses <c>&lt;=</c> and lives on <see cref="Titulo"/> itself (it
-        /// needs <see cref="Titulo.ValorNominal"/>, which this class cannot see).
+        /// Deliberately not the Santander sibling library's "values must sum to exactly the nominal value":
+        /// <see cref="CodigoRateio.ValorCobradoPagador"/> is a share of the amount charged to the payer, not
+        /// of the registered nominal value, so exact equality does not transfer. The <c>&lt;=</c> sum lives on
+        /// <see cref="Titulo"/>, which is where <see cref="Titulo.ValorNominal"/> is visible.
         /// </remarks>
         /// <inheritdoc />
         public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
@@ -871,8 +806,8 @@ namespace BoletoForBanrisul.Core.Models
                     new[] { nameof(TipoValor) }));
             }
 
-            // Same reason as Titulo.Validate's own null-conditional accesses: this runs unconditionally, so a
-            // null list from the wire has to skip the rules below and let [Required] report it.
+            // As in Titulo.Validate: this runs unconditionally, so a null list has to skip the rules below
+            // and let [Required] report it.
             if (Beneficiarios is null)
                 return results;
 
@@ -930,11 +865,7 @@ namespace BoletoForBanrisul.Core.Models
         [RegularExpression(BanrisulPatterns.Digits13)]
         public string Codigo { get; set; } = "";
 
-        /// <summary>
-        /// CPF/CNPJ of the sharing beneficiary. Sent on the request and also echoed back by the bank, so
-        /// this gets format-only validation, no <see cref="RequiredAttribute"/> — the "Com Rateio" request
-        /// sends it, but nothing in the schema requires it.
-        /// </summary>
+        /// <summary>CPF/CNPJ of the sharing beneficiary: sent on the request and echoed back, so format-only and not required.</summary>
         [RegularExpression(BanrisulPatterns.CpfOrCnpj)]
         public string? CpfCnpj { get; set; }
 
@@ -952,26 +883,17 @@ namespace BoletoForBanrisul.Core.Models
         [Range(0, 9999)]
         public int? Parcela { get; set; }
 
-        /// <summary>
-        /// Retornado pelo banco, mas também enviado no request "Com Rateio" - format-only, no
-        /// <see cref="RequiredAttribute"/>.
-        /// </summary>
+        /// <summary>Returned by the bank, but also sent on the "Com Rateio" request: format-only, not required.</summary>
         [EnumDataType(typeof(TipoPessoa), ErrorMessage = "TipoPessoa must be one of the defined TipoPessoa values.")]
         [JsonConverter(typeof(TipoPessoaConverter))]
         public TipoPessoa? TipoPessoa { get; set; }
 
-        /// <summary>
-        /// Retornado pelo banco, mas também enviado no request "Com Rateio" - format-only, no
-        /// <see cref="RequiredAttribute"/>.
-        /// </summary>
+        /// <summary>Returned by the bank, but also sent on the "Com Rateio" request: format-only, not required.</summary>
         [StringLength(60, MinimumLength = 1)]
         [RegularExpression(BanrisulPatterns.Text)]
         public string? Nome { get; set; }
 
-        /// <summary>
-        /// Retornado pelo banco, mas também enviado no request "Com Rateio" - format-only, no
-        /// <see cref="RequiredAttribute"/>.
-        /// </summary>
+        /// <summary>Returned by the bank, but also sent on the "Com Rateio" request: format-only, not required.</summary>
         [StringLength(60, MinimumLength = 1)]
         [RegularExpression(BanrisulPatterns.Text)]
         public string? NomeFantasia { get; set; }
@@ -979,46 +901,22 @@ namespace BoletoForBanrisul.Core.Models
 
     public class Hibrido
     {
-        /// <summary>
-        /// Indica se a operação híbrida foi autorizada.
-        /// Pode assumir os valores:
-        /// S = Sim
-        /// N = Não
-        /// </summary>
+        /// <summary>Whether the hybrid (boleto + Pix) operation is authorized: S = yes, N = no.</summary>
         [EnumDataType(typeof(SimNao), ErrorMessage = "Autoriza must be one of the defined SimNao values.")]
         [JsonConverter(typeof(SimNaoConverter))]
         public SimNao Autoriza { get; set; }
 
-        /// <summary>
-        /// Situação do registro. Pode assumir os valores:
-        /// A = Criado
-        /// N = Não criado
-        /// P = Pendente
-        /// Retornado pelo banco.
-        /// </summary>
+        /// <summary>Registration status: A = created, N = not created, P = pending. Returned by the bank.</summary>
         [JsonConverter(typeof(SituacaoHibridoConverter))]
         public SituacaoHibrido? Situacao { get; set; }
 
-        /// <summary>
-        /// Identificador da transação (opcional).
-        /// Campo numérico de até 33 caracteres.
-        /// Retornado pelo banco.
-        /// </summary>
+        /// <summary>Transaction id, up to 33 digits (optional). Returned by the bank.</summary>
         public string? Txid { get; set; }
 
-        /// <summary>
-        /// Endereço do QR Code registrado no banco (opcional).
-        /// Campo alfanumérico de até 77 caracteres.
-        /// Retornado pelo banco.
-        /// </summary>
+        /// <summary>Address of the QR code registered at the bank, up to 77 characters (optional). Returned by the bank.</summary>
         public string? Location { get; set; }
 
-        /// <summary>
-        /// Texto "Copia &amp; Cola" responsável pela geração do QR Code
-        /// para pagamento via Pix (opcional).
-        /// Campo alfanumérico de até 512 caracteres.
-        /// Retornado pelo banco.
-        /// </summary>
+        /// <summary>"Copia &amp; Cola" text the Pix QR code is generated from, up to 512 characters (optional). Returned by the bank.</summary>
         public string? CopiaCola { get; set; }
     }
 
