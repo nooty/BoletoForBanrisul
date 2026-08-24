@@ -72,6 +72,21 @@ namespace BoletoForBanrisul.Report.Utils
         public TimeSpan HardTimeoutGrace { get; set; } = TimeSpan.FromSeconds(30);
 
         /// <summary>
+        /// How many times to retry when Chromium fails to start. Default: 2. <c>0</c> turns retrying off.
+        /// </summary>
+        /// <remarks>
+        /// Covers one class of failure: a browser that dies while starting up. It is genuinely
+        /// transient, because both the process and the profile are new on every attempt. It does not
+        /// cover a conversion that <em>stalls</em> - that consumes the whole
+        /// <see cref="ConversionTimeout"/> and comes out as <see cref="TimeoutException"/>, which is
+        /// never retried here. Each attempt arms its own budget, so in the worst case the wall-clock
+        /// time grows with the retry count; in practice a startup failure of this kind surfaces in
+        /// under a second, so the added cost is mostly the price of another browser launch.
+        /// </remarks>
+        /// <seealso cref="ChromiumHtmlToPdfConverter.IsTransientBrowserStartupFailure(Exception)"/>
+        public int BrowserStartupRetries { get; set; } = 2;
+
+        /// <summary>
         /// Chromium profile directory (<c>--user-data-dir</c>). Null or empty (the default) gives each
         /// conversion its own profile under a temporary directory, deleted when it ends.
         /// </summary>
@@ -213,6 +228,7 @@ namespace BoletoForBanrisul.Report.Utils
             {
                 ConversionTimeout = ConversionTimeout,
                 HardTimeoutGrace = HardTimeoutGrace,
+                BrowserStartupRetries = BrowserStartupRetries,
                 UserProfileDirectory = UserProfileDirectory,
                 UseCache = UseCache,
                 MinimumFreeDiskMegabytes = MinimumFreeDiskMegabytes,
@@ -260,6 +276,9 @@ namespace BoletoForBanrisul.Report.Utils
             if (ConversionTimeout > MaximumDeadline - HardTimeoutGrace)
                 throw new ArgumentOutOfRangeException(nameof(ConversionTimeout), ConversionTimeout, $"ConversionTimeout + HardTimeoutGrace não pode passar de {MaximumDeadline.TotalDays:0.#} dias.");
 
+            if (BrowserStartupRetries < 0)
+                throw new ArgumentOutOfRangeException(nameof(BrowserStartupRetries), BrowserStartupRetries, "O número de retentativas de subida do Chromium não pode ser negativo.");
+
             if (WaitForWindowStatusTimeout < 0)
                 throw new ArgumentOutOfRangeException(nameof(WaitForWindowStatusTimeout), WaitForWindowStatusTimeout, "O timeout de espera por window.status não pode ser negativo.");
 
@@ -287,6 +306,20 @@ namespace BoletoForBanrisul.Report.Utils
                     "suporta duas instâncias do Chromium ao mesmo tempo. Deixe MaxConcurrentConversions em 1 ou volte ao " +
                     "profile descartável.",
                     nameof(MaxConcurrentConversions));
+
+            // The converter appends its own --user-data-dir after this list, precisely so it always
+            // has the final word - see ChromiumHtmlToPdfConverter.ConvertAsync. An entry here would
+            // either be silently overwritten (surprising) or, if the append order ever changed, would
+            // point Chromium at a directory the converter does not own, does not lock and does not
+            // clean up. UserProfileDirectory is the supported way to pin the profile.
+            foreach (var argument in ChromiumArguments)
+            {
+                if (argument != null && argument.StartsWith("--user-data-dir", StringComparison.OrdinalIgnoreCase))
+                    throw new ArgumentException(
+                        "ChromiumArguments não pode conter --user-data-dir; use UserProfileDirectory para fixar o " +
+                        "profile.",
+                        nameof(ChromiumArguments));
+            }
 
             if (PageSettings == null)
                 throw new ArgumentNullException(nameof(PageSettings), "As configurações de página não podem ser nulas.");

@@ -64,6 +64,11 @@ namespace BoletoForBanrisul.Report.Utils
             TimeSpan.FromMilliseconds(400)
         };
 
+        // Wait between browser startup retries. Short and fixed, unlike ProfileDeleteRetryDelays: this
+        // class of failure is a dead process, not contention that backing off would relieve, and each
+        // attempt already pays for a fresh Chromium launch.
+        private static readonly TimeSpan BrowserStartupRetryDelay = TimeSpan.FromMilliseconds(250);
+
         // The sweep walks the whole temp directory, so it is shared by every instance: one sweep at a
         // time, per process.
         private static int _orphanCleanupRunning;
@@ -161,6 +166,22 @@ namespace BoletoForBanrisul.Report.Utils
         /// hard deadline, without the caller cancelling.
         /// </exception>
         /// <exception cref="PdfConversionException">The conversion failed for any other reason.</exception>
+        /// <remarks>
+        /// <para>
+        /// A startup failure classified by <see cref="IsTransientBrowserStartupFailure"/> is retried up
+        /// to <see cref="ChromiumConverterSettings.BrowserStartupRetries"/> times before surfacing as
+        /// <see cref="PdfConversionException"/> - transparent to the caller, who sees the same
+        /// exception table either way. Retrying happens here, inside the semaphore, so a retried attempt
+        /// keeps its slot instead of returning it and competing for a new one.
+        /// </para>
+        /// <para>
+        /// The loop itself has no automated coverage, for the same reason
+        /// <see cref="AwaitWithHardDeadline"/> does not: exercising it on demand takes an internal seam
+        /// for faking a failed browser session, deliberately not introduced. What is covered is the
+        /// classification the loop's <c>when</c> clause relies on -
+        /// <see cref="IsTransientBrowserStartupFailure"/> - and the settings that shape the retry count.
+        /// </para>
+        /// </remarks>
         public async Task<byte[]> ConvertToPdfAsync(string html, CancellationToken cancellationToken = default)
         {
             if (html == null)
@@ -181,7 +202,34 @@ namespace BoletoForBanrisul.Report.Utils
 
                 EnsureFreeDiskSpace();
 
-                var pdf = await ConvertAsync(html, cancellationToken).ConfigureAwait(false);
+                byte[] pdf;
+
+                for (var attempt = 0; ; attempt++)
+                {
+                    try
+                    {
+                        pdf = await ConvertAsync(html, cancellationToken).ConfigureAwait(false);
+                        break;
+                    }
+                    catch (BrowserStartupFailedException exception) when (attempt < _settings.BrowserStartupRetries)
+                    {
+                        _logger?.LogWarning(exception.InnerException,
+                            "Falha transitória ao iniciar o Chromium (tentativa {attempt} de {maxAttempts}); tentando de novo.",
+                            attempt + 1, _settings.BrowserStartupRetries + 1);
+
+                        // No token guard beyond what Task.Delay itself does: the wait is short, and
+                        // letting the caller's cancellation interrupt it here is the correct outcome -
+                        // the alternative is finishing a retry the caller no longer wants.
+                        await Task.Delay(BrowserStartupRetryDelay, cancellationToken).ConfigureAwait(false);
+                    }
+                    catch (BrowserStartupFailedException exception)
+                    {
+                        // Retries exhausted: unwrapped into the same exception the generic clause in
+                        // ConvertAsync would have produced, so a caller reading PdfConversionException
+                        // cannot tell a retried startup failure from one that was never retried.
+                        throw new PdfConversionException("Falha ao converter o HTML do boleto em PDF.", exception.InnerException!);
+                    }
+                }
 
                 // A conversion that "succeeded" without writing anything is a silent failure: the
                 // caller files a zero byte PDF and only finds out when someone tries to open it. Kept
@@ -240,10 +288,21 @@ namespace BoletoForBanrisul.Report.Utils
                 // exception type.
                 budget.CancelAfter(_settings.ConversionTimeout);
 
+                // userProfile is deliberately null, not profileDirectory. Passing a profile makes the
+                // library read the DevTools endpoint from the DevToolsActivePort file it polls for
+                // inside that profile - and Chromium writes the file's two lines (port, then path) in
+                // separate operations, so a read caught in between gets one line and throws
+                // IndexOutOfRangeException indexing the other. That race is what reached production.
+                // With userProfile null the library instead parses the endpoint off the "DevTools
+                // listening on ws://..." line the process prints to stderr - no polling, no partial
+                // read - and, as a side effect fixed in the same 4.2.11 release, also registers the
+                // Exited handler that reports a browser that dies on startup instead of leaving the
+                // conversion to run out its whole budget. Do not "fix" this back to profileDirectory:
+                // it restores the exact bug this file exists to work around.
                 handle = new ConverterHandle(
                     new Converter(
                         chromiumExeFileName: _settings.ChromiumExecutablePath,
-                        userProfile: profileDirectory,
+                        userProfile: null,
                         logger: _logger,
                         useCache: _settings.UseCache,
                         browser: _settings.Browser),
@@ -257,6 +316,15 @@ namespace BoletoForBanrisul.Report.Utils
                 {
                     converter.AddChromiumArgument(argument);
                 }
+
+                // Added last, and through the two-parameter overload: it quotes the value and replaces
+                // any --user-data-dir= already present, so this call - not whatever is in
+                // ChromiumArguments - is always the one Chromium sees. Validate() already refuses a
+                // --user-data-dir in ChromiumArguments, so in practice there is nothing to replace; the
+                // ordering is what makes that refusal enforceable rather than just declared. The
+                // profile itself is unchanged by any of this - still ours, disposable, owner-locked -
+                // only how the DevTools endpoint is discovered changes.
+                converter.AddChromiumArgument("--user-data-dir", profileDirectory);
 
                 using var byteStream = new MemoryStream();
 
@@ -324,6 +392,16 @@ namespace BoletoForBanrisul.Report.Utils
                 throw new TimeoutException(
                     $"A conversão para PDF estourou o tempo de {_settings.ConversionTimeout.TotalSeconds:0.#}s.",
                     exception);
+            }
+            catch (Exception exception) when (IsTransientBrowserStartupFailure(exception))
+            {
+                // Reached only past the cancellation, hard-deadline and budget clauses above: a startup
+                // that stalls already left as TimeoutException, so getting here means Chromium failed
+                // outright, fast, with a fresh process and profile next attempt. Wrapped in the marker
+                // rather than thrown as-is so ConvertToPdfAsync's retry loop can catch exactly this
+                // outcome and nothing else - a raw ChromiumException here could also mean a genuine,
+                // non-retryable misconfiguration surfacing through the generic clause below.
+                throw new BrowserStartupFailedException(exception);
             }
             catch (Exception exception)
             {
@@ -479,6 +557,39 @@ namespace BoletoForBanrisul.Report.Utils
         /// </remarks>
         internal static bool IsLibraryConversionTimeout(Exception exception)
             => exception is ConversionTimedOutException;
+
+        /// <summary>
+        /// Tells whether the exception is the library reporting a failure to start Chromium, the class
+        /// of failure <see cref="ChromiumConverterSettings.BrowserStartupRetries"/> retries.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// <see cref="ChromiumException"/> is, in practice, exclusive to startup: every <c>throw</c> of
+        /// it in the library's 4.4.5 sits in <c>StartChromiumHeadlessAsync</c> or
+        /// <c>ReadDevToolsActiveFileAsync</c>, save two in <c>AddChromiumArgument</c> that only fire on
+        /// a programming error, before any conversion runs. It is a plain type (<c>: Exception</c>),
+        /// not a base of <see cref="ConversionException"/> or the other library exceptions, so this
+        /// check cannot also catch a content failure and retry a browser that is working fine.
+        /// </para>
+        /// <para>
+        /// <see cref="IndexOutOfRangeException"/> is kept as a belt-and-braces entry: it is the exact
+        /// exception the library throws today when a read of <c>DevToolsActivePort</c> lands between
+        /// its two lines being written - the race this converter routes around by passing no user
+        /// profile. Should the library revert to reading that file, or the fix in a newer release get
+        /// undone, startup failures of that shape stay retryable instead of surfacing as an opaque
+        /// <see cref="PdfConversionException"/>.
+        /// </para>
+        /// <para>
+        /// What decides whether a startup failure is retryable at all is not this predicate but the
+        /// catch ladder's ordering, the same way <see cref="IsLibraryConversionTimeout"/> is a
+        /// fallback rather than the main criterion there: this clause sits after the ones for
+        /// cancellation, the hard deadline and the conversion budget, so a startup that <em>stalls</em>
+        /// still consumes the whole budget and comes out as <see cref="TimeoutException"/>, never
+        /// retried here. Only a startup that fails outright reaches this clause.
+        /// </para>
+        /// </remarks>
+        internal static bool IsTransientBrowserStartupFailure(Exception exception)
+            => exception is ChromiumException || exception is IndexOutOfRangeException;
 
         /// <summary>
         /// Awaits the conversion within the deadline, killing Chromium if it stops responding.
@@ -955,6 +1066,25 @@ namespace BoletoForBanrisul.Report.Utils
         public void Dispose()
         {
             _disposed = true;
+        }
+
+        /// <summary>
+        /// Marks a failure as an <see cref="IsTransientBrowserStartupFailure"/> match, so
+        /// <see cref="ConvertToPdfAsync"/> can catch exactly this outcome and retry it.
+        /// </summary>
+        /// <remarks>
+        /// Private and never seen outside this class: it exists only to carry the classification the
+        /// one call site further up already made, from <see cref="ConvertAsync"/>'s catch ladder to the
+        /// retry loop around it. A caller that somehow caught it would still find the library exception
+        /// underneath, in <see cref="Exception.InnerException"/> - but it never gets that far, because
+        /// the retry loop unwraps it into <see cref="PdfConversionException"/> once attempts run out.
+        /// </remarks>
+        private sealed class BrowserStartupFailedException : Exception
+        {
+            internal BrowserStartupFailedException(Exception innerException)
+                : base("Falha transitória ao iniciar o Chromium.", innerException)
+            {
+            }
         }
 
         /// <summary>

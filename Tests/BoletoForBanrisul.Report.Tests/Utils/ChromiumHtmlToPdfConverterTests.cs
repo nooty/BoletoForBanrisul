@@ -99,7 +99,8 @@ namespace BoletoForBanrisul.Report.Tests.Utils
                 settings => settings.WaitForWindowStatusTimeout = -1,
                 settings => settings.MediaLoadTimeout = -1,
                 settings => settings.OrphanProfileMaxAge = TimeSpan.FromSeconds(-1),
-                settings => settings.OrphanCleanupInterval = TimeSpan.FromSeconds(-1)
+                settings => settings.OrphanCleanupInterval = TimeSpan.FromSeconds(-1),
+                settings => settings.BrowserStartupRetries = -1
             };
 
             Assert.All(invalidSettings, makeInvalid =>
@@ -184,6 +185,16 @@ namespace BoletoForBanrisul.Report.Tests.Utils
                 settings.UserProfileDirectory = Path.Combine(Path.GetTempPath(), "perfil-compartilhado");
                 settings.MaxConcurrentConversions = 1;
             });
+        }
+
+        [Fact]
+        public void Constructor_WithAUserDataDirArgument_Throws()
+        {
+            // The converter appends its own --user-data-dir after ChromiumArguments precisely so it
+            // always has the last word; an entry here would be silently overwritten at best, and at
+            // worst point Chromium at a directory the converter does not own, lock or clean up.
+            Assert.Throws<ArgumentException>(() => new ChromiumHtmlToPdfConverter(settings =>
+                settings.ChromiumArguments.Add("--user-data-dir=/tmp/algum-lugar")));
         }
 
         [Fact]
@@ -483,6 +494,55 @@ namespace BoletoForBanrisul.Report.Tests.Utils
         }
 
         /// <summary>
+        /// The startup-failure classifier accepts only what the catch ladder can actually see once a
+        /// browser fails to start, and nothing that belongs to a different clause.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// Mirrors <see cref="IsLibraryConversionTimeout_RecognisesOnlyTheLibrarysConversionTimeout"/>:
+        /// this is a policy pinned in one place, because a policy left implicit gets "corrected" the
+        /// next time somebody reads the code without the context of why it is narrow.
+        /// </para>
+        /// <para>
+        /// <see cref="ConversionTimedOutException"/> and cancellation types are deliberately among the
+        /// rejects: the catch ladder tries the budget/deadline/cancellation clauses first, so by the
+        /// time this predicate would run on one of those, the exception has already left as
+        /// <see cref="TimeoutException"/> or <see cref="OperationCanceledException"/>. Accepting them
+        /// here as well would not change behaviour through the ladder, but it would make the predicate
+        /// lie about what it actually classifies if read on its own - which is the failure mode this
+        /// test exists to catch.
+        /// </para>
+        /// </remarks>
+        [Fact]
+        public void IsTransientBrowserStartupFailure_RecognisesOnlyStartupFailures()
+        {
+            var startupFailures = new[]
+            {
+                CreateLibraryException("ChromiumException"),
+                new IndexOutOfRangeException()
+            };
+
+            var failures = new[]
+            {
+                CreateLibraryException("ConversionTimedOutException"),
+                CreateLibraryException("ConversionException"),
+                CreateLibraryException("ChromiumNavigationException"),
+                CreateLibraryException("TaskTimedOutException"),
+                new OperationCanceledException(),
+                new TaskCanceledException(),
+                new IOException()
+            };
+
+            Assert.All(startupFailures, exception =>
+                Assert.True(ChromiumHtmlToPdfConverter.IsTransientBrowserStartupFailure(exception),
+                    $"{exception.GetType().Name} is a browser startup failure and should be retried."));
+
+            Assert.All(failures, exception =>
+                Assert.False(ChromiumHtmlToPdfConverter.IsTransientBrowserStartupFailure(exception),
+                    $"{exception.GetType().Name} is not a startup failure and must not be retried as one."));
+        }
+
+        /// <summary>
         /// Mutating the caller's settings after construction must not reach the converter.
         /// </summary>
         /// <remarks>
@@ -498,7 +558,8 @@ namespace BoletoForBanrisul.Report.Tests.Utils
             var settings = new ChromiumConverterSettings
             {
                 ConversionTimeout = TimeSpan.FromSeconds(30),
-                MaxConcurrentConversions = 1
+                MaxConcurrentConversions = 1,
+                BrowserStartupRetries = 3
             };
 
             settings.ChromiumArguments.Clear();
@@ -508,10 +569,12 @@ namespace BoletoForBanrisul.Report.Tests.Utils
 
             // Every one of these would be a problem if the converter kept reading the caller's object:
             // the timeout overflows the cast to int, the shared profile contradicts the semaphore's
-            // capacity, and a null PageSettings blows up inside the library.
+            // capacity, a null PageSettings blows up inside the library, and a negative retry count
+            // would slip past Validate entirely.
             settings.ConversionTimeout = TimeSpan.MaxValue;
             settings.UserProfileDirectory = "perfil-compartilhado";
             settings.MaxConcurrentConversions = 8;
+            settings.BrowserStartupRetries = -1;
             settings.PageSettings = null!;
             settings.ChromiumArguments.Clear();
             settings.ChromiumArguments.Add("--isto-nao-deve-chegar-ao-navegador");
@@ -521,6 +584,7 @@ namespace BoletoForBanrisul.Report.Tests.Utils
             Assert.Equal(TimeSpan.FromSeconds(30), frozen.ConversionTimeout);
             Assert.True(string.IsNullOrEmpty(frozen.UserProfileDirectory));
             Assert.Equal(1, frozen.MaxConcurrentConversions);
+            Assert.Equal(3, frozen.BrowserStartupRetries);
             Assert.NotNull(frozen.PageSettings);
             Assert.Equal(new[] { "--argumento-original" }, frozen.ChromiumArguments);
         }

@@ -332,6 +332,7 @@ a headless Chrome/Chromium, which **must be installed on the machine that runs t
 | --- | --- | --- |
 | `ConversionTimeout` | 2 min | Budget for a whole conversion — startup, navigation and printing |
 | `HardTimeoutGrace` | 30 s | Extra time for the cancellation to be observed before the process is killed |
+| `BrowserStartupRetries` | 2 | Retries when Chromium fails to start outright; `0` turns retrying off |
 | `MinimumFreeDiskMegabytes` | 500 | Free space required before launching; `0` turns the check off |
 | `MaxConcurrentConversions` | 1 | Conversions in flight per converter — one Chromium process each |
 | `UserProfileDirectory` | null | Fixed `--user-data-dir`; null gives each conversion its own |
@@ -351,6 +352,11 @@ Settings are copied when the converter is built — changing the object afterwar
 run with different settings, build another converter. A `ConversionTimeout` below one second is
 refused outright: Chromium cannot finish starting in that time, so the value could only ever produce
 failure.
+
+`--user-data-dir` is refused inside `ChromiumArguments`: the converter appends its own after your
+list, on every conversion, so an entry there would either be silently overwritten or point Chromium at
+a directory the converter does not own, lock or clean up. Use `UserProfileDirectory` to pin a fixed
+profile instead.
 
 `SetPdfConverter` and `ConfigureChromium` cannot be combined — `ConfigureChromium` only configures the
 default converter, which is not used at all once you supply your own. Supplying your own
@@ -373,6 +379,14 @@ retrying immediately tends to reproduce it. `PdfConversionException` is worth re
 is transient — a browser that failed to start, a broken DevTools session — but not when it is
 deterministic, such as an invalid configuration or HTML that never renders. When a retry is
 appropriate, keep it bounded; deterministic failures should surface immediately.
+
+One class of transient failure is already retried for you: a Chromium process that dies while
+starting up — a fresh process and profile on every attempt make it genuinely worth retrying — is
+retried up to `BrowserStartupRetries` times (default 2, roughly 250 ms apart) before it reaches you as
+`PdfConversionException`. That retry is internal and transparent: the exception table above does not
+change, and a startup that instead *stalls* still consumes the whole `ConversionTimeout` and comes out
+as `TimeoutException`, never retried internally. Set `BrowserStartupRetries` to `0` to see every
+startup failure immediately, for instance if your own caller already retries.
 
 The types live in `BoletoForBanrisul.Report.Exceptions`. The distinction exists so that a retry policy
 need not be written as `Handle<Exception>`, which would also retry cancellation and a full disk —
