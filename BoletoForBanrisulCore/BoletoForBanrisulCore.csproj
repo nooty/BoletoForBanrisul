@@ -16,6 +16,9 @@
     <RepositoryUrl>https://github.com/nooty/BoletoForBanrisul</RepositoryUrl>
     <PackageLicenseFile>LICENSE</PackageLicenseFile>
     <GenerateDocumentationFile>True</GenerateDocumentationFile>
+    <!-- CS1591: the XML doc file still ships, so the summaries that exist reach consumers; the
+         members without one do not fail the build. -->
+    <NoWarn>$(NoWarn);1591</NoWarn>
     <Version>1.0.0-rc.10</Version>
   </PropertyGroup>
 
