@@ -76,6 +76,14 @@ The component uses the ChromiumHtmlToPdfLib library to generate boleto PDFs via 
     <PackageReference Include="ChromeHtmlToPdf" Version="4.4.5" />
     <PackageReference Include="RazorLight" Version="2.3.1" />
     <PackageReference Include="ZXing.Net" Version="0.16.11" />
+    <!-- Neither is used directly: both are declared only to lift a vulnerable transitive version to
+         its patched one, for this package and for whoever installs it. Drop each once the dependency
+         that drags it in ships a version that already resolves past it.
+         AngleSharp < 1.5.0 (GHSA-pgww-w46g-26qg), through ChromeHtmlToPdf -> HtmlSanitizer.
+         System.Text.RegularExpressions 4.3.0 (GHSA-cmhx-cq75-c4mj), through RazorLight ->
+         Microsoft.CodeAnalysis.Common -> System.Xml.ReaderWriter. -->
+    <PackageReference Include="AngleSharp" Version="1.5.0" />
+    <PackageReference Include="System.Text.RegularExpressions" Version="4.3.1" />
   </ItemGroup>
 
 </Project>
