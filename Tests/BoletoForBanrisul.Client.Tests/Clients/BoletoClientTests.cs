@@ -361,6 +361,36 @@ namespace BoletoForBanrisul.Client.Tests.Clients
         }
 
         [Fact]
+        public async Task GetBoletoAsync_MapsTheStatus_WhenTheErrorBodyIsNotJson()
+        {
+            // A gateway answering 503 with an HTML page instead of the API's error envelope. The status
+            // is what decides the exception; the unreadable body only costs the occurrences.
+            var (builder, _) = StubClientFactory.CreateBoletoClientBuilder(_ => new HttpResponseMessage(HttpStatusCode.ServiceUnavailable)
+            {
+                Content = new StringContent("<html><body>503 Service Unavailable</body></html>", Encoding.UTF8, "text/html")
+            });
+
+            using var client = builder.Build();
+
+            var exception = await Assert.ThrowsAsync<ServiceUnavailableException>(() => client.GetBoletoAsync("0000038806"));
+
+            Assert.Empty(exception.Occurrences);
+        }
+
+        [Fact]
+        public async Task GetBoletoAsync_MapsTheStatus_WhenTheErrorBodyIsEmpty()
+        {
+            var (builder, _) = StubClientFactory.CreateBoletoClientBuilder(
+                _ => JsonResponse(HttpStatusCode.BadRequest, ""));
+
+            using var client = builder.Build();
+
+            var exception = await Assert.ThrowsAsync<InvalidRequestException>(() => client.GetBoletoAsync("0000038806"));
+
+            Assert.Empty(exception.Occurrences);
+        }
+
+        [Fact]
         public async Task GetBoletoAsync_On401_ThrowsUnauthorizedException_WhichIsNotAnApiException_AndCarriesNoOccurrences()
         {
             // A real quirk of this codebase: HandleErrors throws Exceptions.Auth.UnauthorizedException directly

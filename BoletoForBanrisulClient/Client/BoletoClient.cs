@@ -269,9 +269,7 @@ namespace BoletoForBanrisul.Client
             {
                 string content = await response.Content.ReadAsStringAsync();
 
-                var errorResponse = Deserialize<ErrorResponse>(content);
-
-                var occurrences = errorResponse?.Ocorrencias;
+                var occurrences = TryReadOccurrences(content);
 
                 ApiException exception;
 
@@ -309,6 +307,33 @@ namespace BoletoForBanrisul.Client
                     exception.Occurrences.AddRange(occurrences.Select(o => new ApiOccurrence(o.Codigo, o.Mensagem, o.Complemento)).ToList());
 
                 throw exception;
+            }
+        }
+
+        /// <summary>
+        /// Reads the occurrences from an error body, or returns null when the body does not carry any.
+        /// </summary>
+        /// <remarks>
+        /// The error body is best-effort enrichment: the status code alone decides which exception is
+        /// thrown. A gateway answering 502/503 with an HTML page, or any error with an empty body, has
+        /// to reach the caller as its typed exception - reading it unguarded surfaced JsonException
+        /// instead, which is not even an <see cref="ApiException"/> and escaped the whole table in
+        /// <see cref="HandleErrors"/>. The tolerance stops here: on the success path a malformed body is
+        /// a real failure and still surfaces through <see cref="Deserialize{T}"/>.
+        /// </remarks>
+        private List<ErrorOccurrence>? TryReadOccurrences(string content)
+        {
+            try
+            {
+                return Deserialize<ErrorResponse>(content).Ocorrencias;
+            }
+            catch (JsonException)
+            {
+                return null;
+            }
+            catch (ResponseDeserializationException)
+            {
+                return null;
             }
         }
 
