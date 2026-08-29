@@ -4,7 +4,7 @@ using System.Text.Json;
 namespace BoletoForBanrisul.Core.Converters
 {
     /// <summary>
-    /// A classe SnakeCaseLowerNamingPolicy converte nomes de propriedades JSON para o formato snake_case.
+    /// Converts JSON property names to snake_case.
     /// </summary>
     public class SnakeCaseLowerNamingPolicy : JsonNamingPolicy
     {
@@ -20,7 +20,7 @@ namespace BoletoForBanrisul.Core.Converters
                 return input;
             }
 
-            // Converte a string de PascalCase ou camelCase para snake_case.
+            // Converts the string from PascalCase or camelCase to snake_case.
             var result = new System.Text.StringBuilder();
             for (int i = 0; i < input.Length; i++)
             {

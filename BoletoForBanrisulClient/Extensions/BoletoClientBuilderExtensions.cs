@@ -5,19 +5,19 @@ using System;
 namespace BoletoForBanrisul.Client.Extensions
 {
     /// <summary>
-    /// Métodos de extensão para registrar o BoletoClientBuilder no contêiner de injeção de dependência do .NET.
+    /// Extension methods for registering the BoletoClientBuilder in .NET's dependency injection container.
     /// </summary>
     public static class BoletoClientBuilderExtensions
     {
         /// <summary>
-        /// Adiciona o BoletoClientBuilder ao contêiner de injeção de dependência como um serviço transiente.
-        /// Permite que o usuário configure o builder opcionalmente por meio de uma ação.
+        /// Adds the BoletoClientBuilder to the dependency injection container as a transient service.
+        /// The builder can optionally be configured through an action.
         /// </summary>
-        /// <param name="services">Coleção de serviços onde o BoletoClientBuilder será registrado.</param>
+        /// <param name="services">Service collection the BoletoClientBuilder is registered in.</param>
         /// <param name="configureBuilder">
-        /// Ação opcional para configurar o BoletoClientBuilder. Recebe o <see cref="IServiceProvider"/>
-        /// do container, permitindo resolver outros serviços registrados (ex: ITokenStorage, loggers) para
-        /// configurar o builder.
+        /// Optional action that configures the BoletoClientBuilder. It receives the container's
+        /// <see cref="IServiceProvider"/>, so other registered services (ITokenStorage, loggers) can be
+        /// resolved to configure the builder.
         /// </param>
         public static IServiceCollection AddBoletoForBanrisulClientBuilder(this IServiceCollection services, Action<BoletoClientBuilder, IServiceProvider>? configureBuilder = null)
         {

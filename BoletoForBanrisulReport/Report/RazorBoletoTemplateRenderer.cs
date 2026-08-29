@@ -8,17 +8,17 @@ using System.Threading;
 namespace BoletoForBanrisul.Report
 {
     /// <summary>
-    /// Renderizador padrão, baseado em RazorLight.
+    /// Default renderer, based on RazorLight.
     /// </summary>
     /// <remarks>
     /// <para>
-    /// Construir custa caro - o RazorLight resolve as referências de metadados do Roslyn e cria um
-    /// cache de templates vazio - e uma instância por boleto recompila o template a cada impressão.
-    /// Use uma só: <see cref="Default"/> para o template embutido, ou uma sua como singleton.
+    /// Building it is expensive - RazorLight resolves Roslyn's metadata references and creates an empty
+    /// template cache - and one instance per boleto recompiles the template on every print. Use a single
+    /// one: <see cref="Default"/> for the embedded template, or one of your own as a singleton.
     /// </para>
     /// <para>
-    /// É seguro para uso concorrente: o RazorLight sincroniza a compilação por chave de template e
-    /// entrega uma instância de página nova a cada renderização.
+    /// It is safe for concurrent use: RazorLight synchronises compilation per template key and hands out
+    /// a fresh page instance on every render.
     /// </para>
     /// </remarks>
     public sealed class RazorBoletoTemplateRenderer : IBoletoTemplateRenderer
@@ -33,7 +33,7 @@ namespace BoletoForBanrisul.Report
         private readonly string _templateKey;
 
         /// <summary>
-        /// Cria o renderizador com o template de boleto embutido no pacote.
+        /// Creates the renderer with the boleto template embedded in the package.
         /// </summary>
         public RazorBoletoTemplateRenderer()
         {
@@ -47,10 +47,10 @@ namespace BoletoForBanrisul.Report
         }
 
         /// <summary>
-        /// Cria o renderizador com um template próprio, lido do sistema de arquivos.
+        /// Creates the renderer with a template of your own, read from the file system.
         /// </summary>
-        /// <param name="templateDirectoryPath">Diretório onde o template está armazenado.</param>
-        /// <param name="templateFileName">Nome do arquivo de template.</param>
+        /// <param name="templateDirectoryPath">Directory the template is stored in.</param>
+        /// <param name="templateFileName">Template file name.</param>
         public RazorBoletoTemplateRenderer(string templateDirectoryPath, string templateFileName)
         {
             if (string.IsNullOrEmpty(templateDirectoryPath))
@@ -77,11 +77,11 @@ namespace BoletoForBanrisul.Report
         }
 
         /// <summary>
-        /// Instância compartilhada para o template embutido, criada na primeira utilização.
+        /// Shared instance for the embedded template, created on first use.
         /// </summary>
         /// <remarks>
-        /// É o padrão do <see cref="BoletoReportBuilder"/>, para que vários relatórios não custem um
-        /// engine Razor cada um mesmo sem injeção de dependência.
+        /// It is <see cref="BoletoReportBuilder"/>'s default, so that several reports do not cost one
+        /// Razor engine each even without dependency injection.
         /// </remarks>
         public static RazorBoletoTemplateRenderer Default => _default.Value;
 

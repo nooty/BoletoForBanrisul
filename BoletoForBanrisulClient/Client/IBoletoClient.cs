@@ -11,25 +11,25 @@ using BoletoForBanrisul.Client.Models.Responses;
 namespace BoletoForBanrisul.Client
 {
     /// <summary>
-    /// Cliente para a API de cobrança do Banrisul.
+    /// Client for Banrisul's billing API.
     /// </summary>
     /// <remarks>
-    /// Implementa <see cref="IDisposable"/> porque <see cref="BoletoClientBuilder"/> sempre monta e é
-    /// proprietário dos dois HttpClient internos (o da API e o do autenticador). Chame
-    /// <see cref="IDisposable.Dispose"/> (ou utilize um bloco using) para liberá-los quando o client não for
-    /// mais utilizado.
+    /// It implements <see cref="IDisposable"/> because <see cref="BoletoClientBuilder"/> always assembles
+    /// and owns the two internal HttpClients (the API's and the authenticator's). Call
+    /// <see cref="IDisposable.Dispose"/> (or use a using block) to release them once the client is no
+    /// longer in use.
     /// </remarks>
     public interface IBoletoClient : IDisposable
     {
         /// <summary>
-        /// Registra um boleto no banco.
+        /// Registers a boleto with the bank.
         /// </summary>
         /// <param name="boleto">
-        /// Objeto boleto a ser registrado. Validado localmente por <see cref="BoletoForBanrisul.Core.Validation.RecursiveValidator"/>
-        /// antes de qualquer requisição HTTP ser enviada.
+        /// The boleto to register. Validated locally by <see cref="BoletoForBanrisul.Core.Validation.RecursiveValidator"/>
+        /// before any HTTP request is sent.
         /// </param>
-        /// <param name="cancellationToken">Token para cancelar a operação.</param>
-        /// <returns>Boleto registrado.</returns>
+        /// <param name="cancellationToken">Token that cancels the operation.</param>
+        /// <returns>The registered boleto.</returns>
         /// <exception cref="BoletoForBanrisul.Core.Validation.ModelValidationException">The bank slip failed local validation; no HTTP request was made.</exception>
         /// <exception cref="InvalidRequestException"/>
         /// <exception cref="UnauthorizedException"/>
@@ -44,12 +44,12 @@ namespace BoletoForBanrisul.Client
         Task<CreateBoletoResponse> CreateBoletoAsync(Boleto boleto, CancellationToken cancellationToken = default);
 
         /// <summary>
-        /// Consulta um boleto pelo identificador (nosso número, código de barras ou linha digitável).
+        /// Queries a boleto by its identifier (nosso número, barcode or linha digitável).
         /// </summary>
-        /// <param name="idBoleto">Identificador do boleto.</param>
-        /// <param name="typeId">Tipo de identificador. Opcional se o idBoleto for o nosso número.</param>
-        /// <param name="cancellationToken">Token para cancelar a operação.</param>
-        /// <returns>Boleto consultado.</returns>
+        /// <param name="idBoleto">The boleto's identifier.</param>
+        /// <param name="typeId">Identifier type. Optional when idBoleto is the nosso número.</param>
+        /// <param name="cancellationToken">Token that cancels the operation.</param>
+        /// <returns>The boleto found.</returns>
         /// <exception cref="InvalidRequestException"/>
         /// <exception cref="UnauthorizedException"/>
         /// <exception cref="TokenDeserializationException"/>
@@ -63,13 +63,13 @@ namespace BoletoForBanrisul.Client
         Task<GetBoletoResponse> GetBoletoAsync(string idBoleto, BoletoIdentifierType? typeId = null, CancellationToken cancellationToken = default);
 
         /// <summary>
-        /// Concede abatimento em um boleto.
+        /// Grants an abatement on a boleto.
         /// </summary>
-        /// <param name="idBoleto">Identificador do boleto.</param>
-        /// <param name="abatement">Valor do abatimento.</param>
-        /// <param name="typeId">Opcional se idBoleto for o nosso número.</param>
-        /// <param name="cancellationToken">Token para cancelar a operação.</param>
-        /// <returns>Boleto com abatimento concedido.</returns>
+        /// <param name="idBoleto">The boleto's identifier.</param>
+        /// <param name="abatement">The abatement amount.</param>
+        /// <param name="typeId">Optional when idBoleto is the nosso número.</param>
+        /// <param name="cancellationToken">Token that cancels the operation.</param>
+        /// <returns>The boleto with the abatement granted.</returns>
         /// <exception cref="InvalidRequestException"/>
         /// <exception cref="UnauthorizedException"/>
         /// <exception cref="TokenDeserializationException"/>
@@ -83,13 +83,13 @@ namespace BoletoForBanrisul.Client
         Task<GrantAbatementResponse> GrantAbatementAsync(string idBoleto, decimal abatement, BoletoIdentifierType? typeId = null, CancellationToken cancellationToken = default);
 
         /// <summary>
-        /// Altera a data de vencimento de um boleto.
+        /// Changes a boleto's due date.
         /// </summary>
-        /// <param name="idBoleto">Identificador do boleto.</param>
-        /// <param name="newDueDate">Nova data de vencimento.</param>
-        /// <param name="typeId">Opcional se idBoleto for o nosso número.</param>
-        /// <param name="cancellationToken">Token para cancelar a operação.</param>
-        /// <returns>Boleto com a nova data de vencimento.</returns>
+        /// <param name="idBoleto">The boleto's identifier.</param>
+        /// <param name="newDueDate">The new due date.</param>
+        /// <param name="typeId">Optional when idBoleto is the nosso número.</param>
+        /// <param name="cancellationToken">Token that cancels the operation.</param>
+        /// <returns>The boleto with the new due date.</returns>
         /// <exception cref="InvalidRequestException"/>
         /// <exception cref="UnauthorizedException"/>
         /// <exception cref="TokenDeserializationException"/>
@@ -103,12 +103,12 @@ namespace BoletoForBanrisul.Client
         Task<ChangeDueDateResponse> ChangeDueDateAsync(string idBoleto, DateTime newDueDate, BoletoIdentifierType? typeId = null, CancellationToken cancellationToken = default);
 
         /// <summary>
-        /// Baixa (cancela) um boleto.
+        /// Writes off (cancels) a boleto.
         /// </summary>
-        /// <param name="idBoleto">Identificador do boleto.</param>
-        /// <param name="typeId">Opcional se idBoleto for o nosso número.</param>
-        /// <param name="cancellationToken">Token para cancelar a operação.</param>
-        /// <returns>Boleto baixado (cancelado).</returns>
+        /// <param name="idBoleto">The boleto's identifier.</param>
+        /// <param name="typeId">Optional when idBoleto is the nosso número.</param>
+        /// <param name="cancellationToken">Token that cancels the operation.</param>
+        /// <returns>The written-off (cancelled) boleto.</returns>
         /// <exception cref="InvalidRequestException"/>
         /// <exception cref="UnauthorizedException"/>
         /// <exception cref="TokenDeserializationException"/>
@@ -122,12 +122,12 @@ namespace BoletoForBanrisul.Client
         Task<CancelBoletoResponse> CancelBoletoAsync(string idBoleto, BoletoIdentifierType? typeId = null, CancellationToken cancellationToken = default);
 
         /// <summary>
-        /// Emite um boleto em PDF.
+        /// Issues a boleto as PDF.
         /// </summary>
-        /// <param name="idBoleto">Identificador do boleto.</param>
-        /// <param name="typeId">Opcional se idBoleto for o nosso número.</param>
-        /// <param name="cancellationToken">Token para cancelar a operação.</param>
-        /// <returns>Boleto emitido em PDF.</returns>
+        /// <param name="idBoleto">The boleto's identifier.</param>
+        /// <param name="typeId">Optional when idBoleto is the nosso número.</param>
+        /// <param name="cancellationToken">Token that cancels the operation.</param>
+        /// <returns>The boleto issued as PDF.</returns>
         /// <exception cref="InvalidRequestException"/>
         /// <exception cref="UnauthorizedException"/>
         /// <exception cref="TokenDeserializationException"/>

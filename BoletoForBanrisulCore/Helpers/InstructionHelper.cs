@@ -11,12 +11,12 @@ namespace BoletoForBanrisul.Core.Helpers
 {
     public class InstructionHelper
     {
-        // As mensagens do boleto são sempre em pt-BR; a cultura é fixada para que valores e
-        // datas não variem conforme a cultura da máquina em que o código executa.
+        // The boleto's messages are always in pt-BR; the culture is pinned so that amounts and dates
+        // do not vary with the culture of the machine running the code.
         private static readonly CultureInfo PtBrCulture = CultureInfo.GetCultureInfo("pt-BR");
 
-        // "1 dia corrido" vs. "N dias corridos": Baixa.Prazo aceita 1 ([Range(0, 99)]) e a mensagem é
-        // renderizada para qualquer Prazo > 0.
+        // "1 dia corrido" vs. "N dias corridos": Baixa.Prazo accepts 1 ([Range(0, 99)]) and the
+        // message is rendered for any Prazo > 0.
         private static string DaysPhrase(int days) => days == 1 ? "1 dia corrido" : $"{days} dias corridos";
 
         public static List<Mensagem> ConvertInstructionsToMessages(Instrucoes instructions)

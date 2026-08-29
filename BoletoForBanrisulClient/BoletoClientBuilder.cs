@@ -11,7 +11,7 @@ using System.Threading.Tasks;
 namespace BoletoForBanrisul.Client
 {
     /// <summary>
-    /// Builder para IBoletoClient.
+    /// Builder for IBoletoClient.
     /// </summary>
     public class BoletoClientBuilder
     {
@@ -37,16 +37,16 @@ namespace BoletoForBanrisul.Client
         }
 
         /// <summary>
-        /// Substitui o handler de transporte no fundo da cadeia, para que um teste possa exercitar o
-        /// pipeline real - políticas do Polly e <see cref="HttpClients.AuthenticationHandler"/> inclusos -
-        /// sem um socket de verdade.
+        /// Replaces the transport handler at the bottom of the chain, so that a test can exercise the real
+        /// pipeline - Polly policies and <see cref="HttpClients.AuthenticationHandler"/> included - without
+        /// a real socket.
         /// </summary>
         /// <remarks>
-        /// Substitui o fundo da cadeia, não o <see cref="HttpClient"/> inteiro, para que todas as camadas
-        /// acima - retries, timeout, anexação do token, header <c>bergs-beneficiario</c> - permaneçam ativas
-        /// e sob teste.
+        /// It replaces the bottom of the chain, not the whole <see cref="HttpClient"/>, so that every layer
+        /// above - retries, timeout, token attachment, the <c>bergs-beneficiario</c> header - stays active
+        /// and under test.
         /// </remarks>
-        /// <param name="handler">O handler de transporte a ser usado no lugar do padrão.</param>
+        /// <param name="handler">The transport handler to use in place of the default.</param>
         /// <returns></returns>
         internal BoletoClientBuilder SetTransportHandler(HttpMessageHandler handler)
         {
@@ -55,10 +55,10 @@ namespace BoletoForBanrisul.Client
         }
 
         /// <summary>
-        /// Define o armazenamento de tokens para autenticação.
-        /// Esta configuração é opcional e pode ser utilizada para definir uma implementação personalizada de ITokenStorage.
+        /// Sets the token storage used for authentication.
+        /// Optional: use it to supply a custom ITokenStorage implementation.
         /// </summary>
-        /// <param name="tokenStorage">Uma implementação de ITokenStorage para armazenar tokens de autenticação.</param>
+        /// <param name="tokenStorage">An ITokenStorage implementation for storing authentication tokens.</param>
         /// <returns></returns>
         public BoletoClientBuilder SetTokenStorage(ITokenStorage tokenStorage)
         {
@@ -67,12 +67,12 @@ namespace BoletoForBanrisul.Client
         }
 
         /// <summary>
-        /// Define as credenciais de autenticação para utilizar a API de cobrança.
-        /// As credenciais de autenticação são obrigatórias para configurar o cliente.
+        /// Sets the credentials used to call the billing API.
+        /// The credentials are required to configure the client.
         /// </summary>
-        /// <param name="clientId">O Client ID fornecido pelo Banrisul.</param>
-        /// <param name="clientSecret">O Client Secret fornecido pelo Banrisul.</param>
-        /// <param name="scope">O escopo para autenticação. O padrão é "boletos".</param>
+        /// <param name="clientId">The Client ID issued by Banrisul.</param>
+        /// <param name="clientSecret">The Client Secret issued by Banrisul.</param>
+        /// <param name="scope">The authentication scope. Defaults to "boletos".</param>
         /// <returns></returns>
         public BoletoClientBuilder SetAuthentication(string clientId, string clientSecret, string scope = "boletos")
         {
@@ -84,10 +84,10 @@ namespace BoletoForBanrisul.Client
         }
 
         /// <summary>
-        /// Define o código do beneficiário.
-        /// O código do beneficiário é obrigatório para configurar o cliente.
+        /// Sets the beneficiário code.
+        /// The beneficiário code is required to configure the client.
         /// </summary>
-        /// <param name="code">Código completo do beneficiário.</param>
+        /// <param name="code">The beneficiário's full code.</param>
         /// <returns></returns>
         public BoletoClientBuilder SetBeneficiary(string code)
         {
@@ -96,7 +96,7 @@ namespace BoletoForBanrisul.Client
         }
 
         /// <summary>
-        /// Indica que o cliente deve usar o ambiente de Sandbox para testes.
+        /// Points the client at the Sandbox environment, for testing.
         /// </summary>
         /// <returns></returns>
         public BoletoClientBuilder UseSandbox()
@@ -106,11 +106,11 @@ namespace BoletoForBanrisul.Client
         }
 
         /// <summary>
-        /// Define o modo da requisição para os endpoints da API.
-        /// Use este método para especificar se as requisições devem ser feitas no modo de produção ou de teste.
-        /// Esta configuração é opcional; se não for informada, o modo padrão é 'Production'.
+        /// Sets the request mode for the API endpoints.
+        /// Use it to state whether requests are made in production or in test mode.
+        /// Optional; when omitted, the default mode is 'Production'.
         /// </summary>
-        /// <param name="requestMode">O modo da requisição, podendo ser 'Production' ou 'Test'.</param>
+        /// <param name="requestMode">The request mode, either 'Production' or 'Test'.</param>
         /// <returns></returns>
         public BoletoClientBuilder SetRequestMode(RequestModeType requestMode)
         {
@@ -119,9 +119,9 @@ namespace BoletoForBanrisul.Client
         }
 
         /// <summary>
-        /// Habilita o registro de logs das requisições e respostas.
+        /// Enables logging of requests and responses.
         /// </summary>
-        /// <param name="logDirectory">Diretório onde os logs devem ser salvos. Se não preenchido, usa o diretório padrão "Directory.GetCurrentDirectory()/Logs".</param>
+        /// <param name="logDirectory">Directory the logs are written to. When empty, defaults to "Directory.GetCurrentDirectory()/Logs".</param>
         /// <returns></returns>
         public BoletoClientBuilder EnableLogging(string? logDirectory = null)
         {
@@ -134,7 +134,7 @@ namespace BoletoForBanrisul.Client
         }
 
         /// <summary>
-        /// Cria uma instância do cliente com as configurações aplicadas.
+        /// Creates a client instance with the configured settings.
         /// </summary>
         /// <returns></returns>
         public IBoletoClient Build()
@@ -145,9 +145,9 @@ namespace BoletoForBanrisul.Client
 
             _tokenStorage ??= new SharedInMemoryTokenStorage();
 
-            // O autenticador recebe seu próprio HttpClient, deliberadamente separado do usado abaixo para
-            // as chamadas da API: aquele tem o AuthenticationHandler, que por sua vez chama de volta este
-            // autenticador para anexar o token em cada requisição - reutilizá-lo aqui seria circular.
+            // The authenticator gets its own HttpClient, deliberately separate from the one used below for
+            // the API calls: that one carries the AuthenticationHandler, which in turn calls back into this
+            // authenticator to attach the token on every request - reusing it here would be circular.
             var authenticatorHttpClient = new ResilientHttpClientBuilder().SetHandler(CreateTransportHandler()).Build();
             _authenticator = new Authenticator(authSettings, _tokenStorage, authenticatorHttpClient);
 
@@ -155,7 +155,7 @@ namespace BoletoForBanrisul.Client
                 .SetHandler(new AuthenticationHandler(_authenticator, _beneficiaryCode, CreateTransportHandler()))
                 .Build();
 
-            // Cria e retorna o BoletoClient com as configurações aplicadas.
+            // Creates and returns the BoletoClient with the configured settings.
             return new BoletoClient(_clientSettings, _authenticator, apiHttpClient, authenticatorHttpClient);
         }
 
@@ -204,9 +204,9 @@ namespace BoletoForBanrisul.Client
             };
         }
 
-        // Devolve o override de teste quando definido; caso contrário, cria sempre uma nova instância do
-        // handler padrão de transporte - dois HttpClient fazendo dispose da mesma instância causaria
-        // dispose duplo, já que Build() monta dois HttpClient (autenticador e API).
+        // Returns the test override when set; otherwise always creates a new instance of the default
+        // transport handler - two HttpClients disposing the same instance would be a double dispose,
+        // since Build() assembles two HttpClients (authenticator and API).
         private HttpMessageHandler CreateTransportHandler()
         {
             return _transportHandlerOverride ?? new StandardSocketsHttpHandler

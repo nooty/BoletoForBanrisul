@@ -9,44 +9,44 @@ using System.Threading.Tasks;
 namespace BoletoForBanrisul.Report
 {
     /// <summary>
-    /// Configurações do conteúdo de um boleto impresso.
+    /// Settings for the content of a printed boleto.
     /// </summary>
     /// <remarks>
-    /// São dados que podem variar de um boleto para o outro. A origem do template não está aqui:
-    /// ela é configuração de aplicação e vive no <see cref="IBoletoTemplateRenderer"/>.
+    /// These are data that can vary from one boleto to the next. The template's origin is not here:
+    /// that is application configuration and lives in <see cref="IBoletoTemplateRenderer"/>.
     /// </remarks>
     public class PrintSettings
     {
         /// <summary>
-        /// Caminho para o arquivo onde o logotipo do boleto está armazenado.
+        /// Path to the file holding the boleto's logo.
         /// </summary>
         public string LogoFilePath { get; set; } = "";
 
         /// <summary>
-        /// Máscara para o nome do arquivo PDF gerado. 
-        /// Substitui os placeholders pelos valores reais dos campos do boleto.
-        /// 
-        /// Placeholders disponíveis:
-        /// - {NossoNumero}: Número de identificação único do boleto.
-        /// - {SeuNumero}: Número de referência definido pelo cliente.
-        /// - {CpfCnpjPagador}: CPF ou CNPJ do pagador (somente números).
-        /// - {NomePagador}: Nome do pagador.
-        /// - {DataVencimento}: Data de vencimento do boleto, no formato "yyyyMMdd".
-        /// - {DataEmissao}: Data de emissão do boleto, no formato "yyyyMMdd".
-        /// - {NomeBeneficiario}: Nome do beneficiário (quem recebe o pagamento).
-        /// - {CpfCnpjBeneficiario}: CPF ou CNPJ do beneficiário (somente números).
-        /// 
-        /// Exemplo: "boleto_{NossoNumero}_{DataVencimento}" geraria algo como "boleto_12345_20220301.pdf".
+        /// Mask for the generated PDF's file name.
+        /// Placeholders are replaced with the boleto's actual field values.
+        ///
+        /// Available placeholders:
+        /// - {NossoNumero}: the boleto's unique identifier.
+        /// - {SeuNumero}: reference number set by the client.
+        /// - {CpfCnpjPagador}: the pagador's CPF or CNPJ (digits only).
+        /// - {NomePagador}: the pagador's name.
+        /// - {DataVencimento}: the boleto's due date, formatted "yyyyMMdd".
+        /// - {DataEmissao}: the boleto's issue date, formatted "yyyyMMdd".
+        /// - {NomeBeneficiario}: the beneficiário's name (who receives the payment).
+        /// - {CpfCnpjBeneficiario}: the beneficiário's CPF or CNPJ (digits only).
+        ///
+        /// Example: "boleto_{NossoNumero}_{DataVencimento}" yields something like "boleto_12345_20220301.pdf".
         /// </summary>
         public string FileNameTemplate { get; set; } = "boleto_{NossoNumero}";
 
         /// <summary>
-        /// Local de pagamento exibido no boleto.
+        /// Payment location shown on the boleto.
         /// </summary>
         public string PaymentLocation { get; set; } = "PAGAR EM QUALQUER BANCO OU CORRESPONDENTE BANCÁRIO.";
 
         /// <summary>
-        /// Configurações do beneficiário que serão utilizadas no boleto.
+        /// The beneficiário settings used on the boleto.
         /// </summary>
         public BeneficiarySettings Beneficiary { get; set; } = new BeneficiarySettings();
     }

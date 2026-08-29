@@ -6,10 +6,10 @@ namespace BoletoForBanrisul.Client.Auth
         Task<string> GetAccessTokenAsync(CancellationToken cancellationToken = default);
 
         /// <summary>
-        /// Descarta o token em cache para essas credenciais, forçando a próxima chamada a
-        /// <see cref="GetAccessTokenAsync"/> a solicitar um novo. Usado pelo pipeline HTTP quando uma
-        /// chamada à API retorna 401: o token em cache provavelmente expirou (ou foi revogado) desde a
-        /// última validação, então uma única renovação forçada é tentada antes de propagar a falha.
+        /// Discards the cached token for these credentials, forcing the next call to
+        /// <see cref="GetAccessTokenAsync"/> to request a new one. Used by the HTTP pipeline when an API
+        /// call returns 401: the cached token has probably expired (or been revoked) since the last
+        /// validation, so a single forced renewal is attempted before propagating the failure.
         /// </summary>
         void InvalidateToken();
     }

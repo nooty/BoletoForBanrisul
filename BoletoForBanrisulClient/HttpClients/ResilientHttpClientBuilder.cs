@@ -46,15 +46,15 @@ namespace BoletoForBanrisul.Client.HttpClients
 
         public HttpClient Build()
         {
-            // Define a estratégia de Decorrelated Jitter Backoff V2.
+            // Decorrelated Jitter Backoff V2 strategy.
             var retryDelays = Backoff.DecorrelatedJitterBackoffV2(TimeSpan.FromSeconds(1), retryCount: 3);
 
-            // Define políticas de retry e timeout usando Polly.
+            // Retry and timeout policies, through Polly.
             var retryPolicy = HttpPolicyExtensions
                 .HandleTransientHttpError()
                 .WaitAndRetryAsync(retryDelays);
 
-            // Se um HttpClientHandler customizado não for especificado, usa o padrão.
+            // Falls back to the default handler when no custom one was supplied.
             _httpClientHandler ??= new StandardSocketsHttpHandler() {
                 PooledConnectionIdleTimeout = TimeSpan.FromMinutes(2),
             };
@@ -64,13 +64,13 @@ namespace BoletoForBanrisul.Client.HttpClients
                 Timeout = _timeout
             };
 
-            // Configura o endereço base, se fornecido.
+            // Sets the base address, when supplied.
             if (!string.IsNullOrWhiteSpace(_baseAddress))
             {
                 httpClient.BaseAddress = new Uri(_baseAddress);
             }
 
-            // Permite configurações adicionais no HttpClient.
+            // Hook for further HttpClient configuration.
             _configureClientAction?.Invoke(httpClient);
 
             return httpClient;

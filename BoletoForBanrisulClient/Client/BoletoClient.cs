@@ -26,13 +26,13 @@ namespace BoletoForBanrisul.Client
 
         public IAuthenticator Authenticator => _authenticator;
 
-        /// <param name="config">Configurações do client.</param>
-        /// <param name="authenticator">Autenticador utilizado para obter o token de acesso.</param>
-        /// <param name="httpClient">HttpClient utilizado para as requisições à API, com o AuthenticationHandler já configurado.</param>
-        /// <param name="authenticatorHttpClient">HttpClient utilizado pelo <paramref name="authenticator"/> para a troca do token OAuth.</param>
+        /// <param name="config">Client settings.</param>
+        /// <param name="authenticator">Authenticator used to obtain the access token.</param>
+        /// <param name="httpClient">HttpClient used for the API requests, with the AuthenticationHandler already configured.</param>
+        /// <param name="authenticatorHttpClient">HttpClient used by <paramref name="authenticator"/> for the OAuth token exchange.</param>
         /// <remarks>
-        /// O <see cref="BoletoClientBuilder"/> é sempre o proprietário dos dois HttpClient - nada mais os
-        /// referencia - então ambos são descartados em <see cref="Dispose"/> incondicionalmente.
+        /// <see cref="BoletoClientBuilder"/> always owns both HttpClients - nothing else references them -
+        /// so both are disposed in <see cref="Dispose"/> unconditionally.
         /// </remarks>
         public BoletoClient(ClientSettings config, IAuthenticator authenticator, HttpClient httpClient, HttpClient authenticatorHttpClient)
         {
@@ -43,8 +43,8 @@ namespace BoletoForBanrisul.Client
         }
 
         /// <summary>
-        /// Libera os recursos utilizados pelo client, descartando os dois HttpClient criados pelo
-        /// <see cref="BoletoClientBuilder"/> (o da API e o do autenticador).
+        /// Releases the client's resources, disposing the two HttpClients created by
+        /// <see cref="BoletoClientBuilder"/> (the API's and the authenticator's).
         /// </summary>
         public void Dispose()
         {
@@ -68,12 +68,12 @@ namespace BoletoForBanrisul.Client
                 Content = jsonContent
             };
 
-            // Nenhuma das operações de escrita desta classe é marcada com MarkRetrySafe: a API do
-            // Banrisul não documenta garantia de idempotência para nenhuma delas, então um reenvio
-            // automático depois de a resposta se perder na volta é uma aposta, não uma certeza. O
-            // registro é o caso mais caro - o reenvio criaria um segundo boleto -, mas o mesmo
-            // raciocínio vale para a baixa e para as duas alterações. A falha transitória sobe para
-            // quem chamou, que consegue consultar o estado real antes de decidir tentar de novo.
+            // None of this class's write operations is marked with MarkRetrySafe: Banrisul's API
+            // documents no idempotency guarantee for any of them, so an automatic resend after the
+            // response was lost on the way back is a bet, not a certainty. Registration is the most
+            // expensive case - the resend would create a second boleto - but the same reasoning holds
+            // for the write-off and for both changes. The transient failure rises to the caller, who
+            // can query the real state before deciding to try again.
             var response = await HandleRequestAsync(request, cancellationToken);
 
             var responseContent = await response.Content.ReadAsStringAsync();

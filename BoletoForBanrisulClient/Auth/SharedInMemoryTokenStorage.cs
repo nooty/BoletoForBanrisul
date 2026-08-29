@@ -4,13 +4,13 @@ namespace BoletoForBanrisul.Client.Auth
 {
     public class SharedInMemoryTokenStorage : ITokenStorage
     {
-        // Cache e lock compartilhados entre todas as instâncias do processo: tokens são
-        // reaproveitados entre clients distintos com as mesmas credenciais, evitando uma
-        // nova autenticação a cada requisição.
+        // Cache and lock shared by every instance in the process: tokens are reused across
+        // distinct clients with the same credentials, avoiding a fresh authentication on
+        // every request.
         private static readonly SemaphoreSlim _sharedSemaphore = new SemaphoreSlim(1, 1);
         private static readonly ConcurrentDictionary<string, OAuthToken> _sharedCache = new ConcurrentDictionary<string, OAuthToken>();
 
-        // Define a margem de segurança para expiração (5 minutos).
+        // Safety margin against expiry (5 minutes).
         private static readonly TimeSpan SafetyMargin = TimeSpan.FromMinutes(5);
 
         public virtual async Task<string> GetOrAddToken(string key, Func<CancellationToken, Task<OAuthToken>> generateNewToken, CancellationToken cancellationToken = default)
@@ -48,8 +48,8 @@ namespace BoletoForBanrisul.Client.Auth
 
         public virtual void InvalidateToken(string key) => _sharedCache.TryRemove(key, out _);
 
-        // Verifica a validade do token com uma margem de segurança, limitada à metade da
-        // vida útil do token para que tokens de curta duração não sejam sempre renovados.
+        // Checks the token against a safety margin, capped at half the token's lifetime so
+        // that short-lived tokens are not renewed every time.
         private static bool IsTokenValid(OAuthToken token)
         {
             var lifetime = TimeSpan.FromSeconds(token.ExpiresIn);

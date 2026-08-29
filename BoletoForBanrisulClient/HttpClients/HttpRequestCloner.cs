@@ -3,8 +3,8 @@ using System.Collections.Generic;
 namespace BoletoForBanrisul.Client.HttpClients
 {
     /// <summary>
-    /// Clona uma <see cref="HttpRequestMessage"/> a partir do conteúdo já bufferizado. Usado sempre que uma
-    /// requisição precisa ser reenviada: uma HttpRequestMessage não pode ser enviada mais de uma vez.
+    /// Clones an <see cref="HttpRequestMessage"/> from already buffered content. Used whenever a request
+    /// has to be resent: an HttpRequestMessage cannot be sent more than once.
     /// </summary>
     internal static class HttpRequestCloner
     {

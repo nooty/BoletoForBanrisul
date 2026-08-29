@@ -2,7 +2,7 @@ using System.Text.RegularExpressions;
 
 namespace BoletoForBanrisul.Client.Helpers
 {
-    // Auxilia na redação de dados sensíveis (segredos, tokens) antes de gravar logs de requisição/resposta em disco.
+    // Redacts sensitive data (secrets, tokens) before request/response logs are written to disk.
     internal static class SensitiveDataRedactor
     {
         private const string RedactedValue = "***REDACTED***";

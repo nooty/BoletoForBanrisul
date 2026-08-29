@@ -6,20 +6,20 @@ using System.Threading;
 namespace BoletoForBanrisul.Report.Utils
 {
     /// <summary>
-    /// Interface para conversão de HTML em PDF.
+    /// Converts HTML to PDF.
     /// </summary>
     public interface IPdfConverter
     {
         /// <summary>
-        /// Converte uma string HTML em um documento PDF de forma assíncrona.
+        /// Asynchronously converts an HTML string into a PDF document.
         /// </summary>
-        /// <param name="html">O conteúdo HTML a ser convertido em PDF.</param>
+        /// <param name="html">The HTML content to convert to PDF.</param>
         /// <param name="cancellationToken">
-        /// Token para abortar a conversão. Implementações devem honrá-lo - inclusive enquanto
-        /// esperam por outra conversão em andamento - e lançar
-        /// <see cref="OperationCanceledException"/> quando cancelado.
+        /// Token that aborts the conversion. Implementations must honour it - including while waiting
+        /// for another conversion in progress - and throw <see cref="OperationCanceledException"/> when
+        /// cancelled.
         /// </param>
-        /// <returns>O arquivo PDF em formato de array de bytes.</returns>
+        /// <returns>The PDF file as a byte array.</returns>
         Task<byte[]> ConvertToPdfAsync(string html, CancellationToken cancellationToken = default);
     }
 }

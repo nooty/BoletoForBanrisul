@@ -22,7 +22,7 @@ namespace BoletoForBanrisul.Core.Converters
 
         public override void Write(Utf8JsonWriter writer, decimal value, JsonSerializerOptions options)
         {
-            // Formata o valor decimal como string com duas casas decimais
+            // Writes the decimal as a string with one decimal place.
             writer.WriteStringValue(value.ToString(DecimalFormat, CultureInfo.InvariantCulture));
         }
     }

@@ -12,7 +12,7 @@ using System.Threading.Tasks;
 namespace BoletoForBanrisul.Report
 {
     /// <summary>
-    /// Builder para IBoletoReport.
+    /// Builder for IBoletoReport.
     /// </summary>
     public class BoletoReportBuilder
     {
@@ -25,9 +25,9 @@ namespace BoletoForBanrisul.Report
         }
 
         /// <summary>
-        /// Configura as definições de impressão utilizando uma ação fornecida.
+        /// Configures the print settings through the given action.
         /// </summary>
-        /// <param name="handleSettings">A ação que define as configurações de impressão.</param>
+        /// <param name="handleSettings">The action that sets the print settings.</param>
         /// <returns></returns>
         public BoletoReportBuilder Configure(Action<PrintSettings> handleSettings)
         {
@@ -37,10 +37,10 @@ namespace BoletoForBanrisul.Report
         }
 
         /// <summary>
-        /// Define o conversor de PDF a ser utilizado pelo builder.
-        /// Esta configuração é opcional. Caso não seja definida, será utilizado o ChromiumHtmlToPdfConverter por padrão.
+        /// Sets the PDF converter the builder uses.
+        /// Optional. When omitted, ChromiumHtmlToPdfConverter is used by default.
         /// </summary>
-        /// <param name="pdfConverter">Instância do conversor de PDF a ser usada.</param>
+        /// <param name="pdfConverter">The PDF converter instance to use.</param>
         /// <returns></returns>
         public BoletoReportBuilder SetPdfConverter(IPdfConverter pdfConverter)
         {
@@ -50,11 +50,11 @@ namespace BoletoForBanrisul.Report
         }
 
         /// <summary>
-        /// Configura o conversor Chromium padrão - timeouts, espaço mínimo em disco, argumentos,
-        /// logger e concorrência.
-        /// Esta configuração é opcional e não pode ser combinada com <see cref="SetPdfConverter"/>.
+        /// Configures the default Chromium converter - timeouts, minimum free disk space, arguments,
+        /// logger and concurrency.
+        /// Optional, and cannot be combined with <see cref="SetPdfConverter"/>.
         /// </summary>
-        /// <param name="configureChromium">A ação que ajusta as configurações do conversor.</param>
+        /// <param name="configureChromium">The action that adjusts the converter's settings.</param>
         /// <returns></returns>
         public BoletoReportBuilder ConfigureChromium(Action<ChromiumConverterSettings> configureChromium)
         {
@@ -64,25 +64,24 @@ namespace BoletoForBanrisul.Report
         }
 
         /// <summary>
-        /// Indica se o conversor de PDF já foi decidido, por <see cref="SetPdfConverter"/> ou por
-        /// <see cref="ConfigureChromium"/>.
+        /// Tells whether the PDF converter has already been decided, by <see cref="SetPdfConverter"/> or
+        /// by <see cref="ConfigureChromium"/>.
         /// </summary>
         /// <remarks>
-        /// O registro de DI injeta o conversor do contêiner só quando isto é <c>false</c>.
+        /// The DI registration injects the container's converter only when this is <c>false</c>.
         /// </remarks>
         internal bool HasPdfConverterConfigured => _pdfConverter != null || _configureChromium != null;
 
         /// <summary>
-        /// Define o renderizador do HTML do boleto, para usar um template próprio ou compartilhar um
-        /// renderizador já construído.
-        /// Esta configuração é opcional. Caso não seja definida, é usado
-        /// <see cref="RazorBoletoTemplateRenderer.Default"/>, com o template embutido no pacote.
+        /// Sets the renderer for the boleto's HTML, to use a template of your own or to share an
+        /// already built renderer.
+        /// Optional. When omitted, <see cref="RazorBoletoTemplateRenderer.Default"/> is used, with the
+        /// template embedded in the package.
         /// </summary>
         /// <remarks>
-        /// O renderizador é caro de construir e seguro de compartilhar: passe sempre a mesma
-        /// instância.
+        /// The renderer is expensive to build and safe to share: always pass the same instance.
         /// </remarks>
-        /// <param name="templateRenderer">Instância do renderizador a ser usada.</param>
+        /// <param name="templateRenderer">The renderer instance to use.</param>
         /// <returns></returns>
         public BoletoReportBuilder SetTemplateRenderer(IBoletoTemplateRenderer templateRenderer)
         {
@@ -92,18 +91,18 @@ namespace BoletoForBanrisul.Report
         }
 
         /// <summary>
-        /// Indica se o renderizador já foi definido por <see cref="SetTemplateRenderer"/>.
+        /// Tells whether the renderer has already been set by <see cref="SetTemplateRenderer"/>.
         /// </summary>
         internal bool HasTemplateRendererConfigured => _templateRenderer != null;
 
         /// <summary>
-        /// Constrói IBoletoReport com as configurações fornecidas.
+        /// Builds an IBoletoReport with the configured settings.
         /// </summary>
         /// <remarks>
-        /// Sem <see cref="SetPdfConverter"/>, o relatório construído é dono do conversor Chromium
-        /// criado aqui e o descarta no próprio <see cref="IDisposable.Dispose"/>. Para chamar
-        /// <see cref="Build"/> repetidamente, forneça um conversor compartilhado, para não subir um
-        /// Chromium por relatório.
+        /// Without <see cref="SetPdfConverter"/>, the report built here owns the Chromium converter
+        /// created for it and disposes it in its own <see cref="IDisposable.Dispose"/>. To call
+        /// <see cref="Build"/> repeatedly, supply a shared converter, so as not to start one Chromium
+        /// per report.
         /// </remarks>
         /// <returns></returns>
         public IBoletoReport Build()

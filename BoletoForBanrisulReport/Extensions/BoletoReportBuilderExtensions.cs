@@ -6,20 +6,19 @@ using System;
 namespace BoletoForBanrisul.Report.Extensions
 {
     /// <summary>
-    /// Métodos de extensão para registrar o BoletoReportBuilder no contêiner de injeção de dependência do .NET.
+    /// Extension methods for registering the BoletoReportBuilder in .NET's dependency injection container.
     /// </summary>
     public static class BoletoReportBuilderExtensions
     {
         /// <summary>
-        /// Registra o <see cref="BoletoReportBuilder"/> como transiente e, como singleton, as duas
-        /// dependências caras que ele consome: o <see cref="IPdfConverter"/> (processo Chromium) e o
-        /// <see cref="IBoletoTemplateRenderer"/> (engine Razor e cache de templates).
+        /// Registers the <see cref="BoletoReportBuilder"/> as transient and, as singletons, the two
+        /// expensive dependencies it consumes: the <see cref="IPdfConverter"/> (Chromium process) and the
+        /// <see cref="IBoletoTemplateRenderer"/> (Razor engine and template cache).
         /// </summary>
         /// <remarks>
         /// <para>
-        /// O <see cref="IBoletoReport"/> não é registrado: ele carrega o
-        /// <see cref="PrintSettings"/>, que pode mudar a cada boleto. Construa um por uso, com as
-        /// configurações do momento:
+        /// The <see cref="IBoletoReport"/> is not registered: it carries the <see cref="PrintSettings"/>,
+        /// which can change per boleto. Build one per use, with the settings of the moment:
         /// </para>
         /// <code>
         /// using var report = builder
@@ -27,27 +26,26 @@ namespace BoletoForBanrisul.Report.Extensions
         ///     .Build();
         /// </code>
         /// <para>
-        /// Todos os registros usam <c>TryAdd</c> e nada é sobrescrito: um serviço já registrado
-        /// permanece, e uma escolha feita em <paramref name="configureBuilder"/> - por
+        /// Every registration uses <c>TryAdd</c> and nothing is overwritten: an already registered
+        /// service stays, and a choice made in <paramref name="configureBuilder"/> - through
         /// <see cref="BoletoReportBuilder.SetPdfConverter"/>,
-        /// <see cref="BoletoReportBuilder.ConfigureChromium"/> ou
-        /// <see cref="BoletoReportBuilder.SetTemplateRenderer"/> - também é respeitada.
+        /// <see cref="BoletoReportBuilder.ConfigureChromium"/> or
+        /// <see cref="BoletoReportBuilder.SetTemplateRenderer"/> - is respected too.
         /// </para>
         /// <para>
-        /// O contêiner descarta, no fim da vida do provider, os serviços <see cref="IDisposable"/>
-        /// que ele mesmo criou.
+        /// The container disposes, at the end of the provider's life, the <see cref="IDisposable"/>
+        /// services it created itself.
         /// </para>
         /// </remarks>
-        /// <param name="services">Coleção de serviços onde o gerador será registrado.</param>
+        /// <param name="services">Service collection the generator is registered in.</param>
         /// <param name="configureBuilder">
-        /// Ação opcional para configurar o BoletoReportBuilder, executada a cada resolução. Recebe o
-        /// <see cref="IServiceProvider"/> do container, permitindo resolver outros serviços
-        /// registrados.
+        /// Optional action that configures the BoletoReportBuilder, run on every resolution. It receives
+        /// the container's <see cref="IServiceProvider"/>, so other registered services can be resolved.
         /// </param>
         /// <param name="configureChromium">
-        /// Ação opcional para configurar o conversor Chromium singleton - timeouts, espaço mínimo em
-        /// disco, argumentos, logger e concorrência. Ignorada quando já existe um
-        /// <see cref="IPdfConverter"/> registrado.
+        /// Optional action that configures the singleton Chromium converter - timeouts, minimum free disk
+        /// space, arguments, logger and concurrency. Ignored when an <see cref="IPdfConverter"/> is
+        /// already registered.
         /// </param>
         public static IServiceCollection AddBoletoForBanrisulReportBuilder(
             this IServiceCollection services,
@@ -66,7 +64,7 @@ namespace BoletoForBanrisul.Report.Extensions
 
                 configureBuilder?.Invoke(builder, provider);
 
-                // Depois da configuração, e só onde ela não escolheu nada.
+                // After configuration, and only where it chose nothing.
                 if (!builder.HasPdfConverterConfigured)
                     builder.SetPdfConverter(provider.GetRequiredService<IPdfConverter>());
 

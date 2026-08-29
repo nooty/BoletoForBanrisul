@@ -25,7 +25,7 @@ namespace BoletoForBanrisul.Core.Converters
 
         public override void Write(Utf8JsonWriter writer, Especie value, JsonSerializerOptions options)
         {
-            // Obtém o valor numérico do enum e o converte para uma string com 2 dígitos
+            // Takes the enum's numeric value and writes it as a 2-digit string.
             string formattedValue = ((int)value).ToString("D2");
             writer.WriteStringValue(formattedValue);
         }

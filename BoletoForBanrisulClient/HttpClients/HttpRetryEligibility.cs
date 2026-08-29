@@ -1,39 +1,38 @@
 namespace BoletoForBanrisul.Client.HttpClients
 {
     /// <summary>
-    /// Decide quais requisições o <see cref="PolicyHandler"/> pode reenviar.
+    /// Decides which requests <see cref="PolicyHandler"/> may resend.
     /// </summary>
     /// <remarks>
     /// <para>
-    /// A elegibilidade é por requisição, não por cliente, porque o custo de um reenvio indevido varia
-    /// por operação. O padrão só reenvia verbos idempotentes: um <c>POST</c> reenviado depois de a
-    /// resposta se perder na volta pode ser processado duas vezes pelo banco, e o registro de boleto
-    /// não tem garantia de idempotência documentada - o resultado seria um segundo boleto a partir de
-    /// uma única chamada de quem usa a lib.
+    /// Eligibility is per request, not per client, because the cost of an undue resend varies by
+    /// operation. The default resends idempotent verbs only: a <c>POST</c> resent after the response
+    /// was lost on the way back can be processed twice by the bank, and registering a boleto has no
+    /// documented idempotency guarantee - the result would be a second boleto out of a single call
+    /// by the library's user.
     /// </para>
     /// <para>
-    /// Requisições não idempotentes se declaram com <see cref="MarkRetrySafe"/>, uma a uma. A
-    /// marcação é uma afirmação de quem monta a requisição, não uma dedução do handler; por isso o
-    /// padrão é o lado seguro, e um endpoint novo que ninguém analisou nasce sem retry em vez de
-    /// herdá-lo em silêncio. Hoje a única marcação é a troca de token OAuth: nenhuma das operações de
-    /// cobrança é reenviada, porque a API do Banrisul não documenta idempotência para nenhuma delas.
+    /// Non-idempotent requests declare themselves with <see cref="MarkRetrySafe"/>, one by one. The
+    /// mark is an assertion by whoever builds the request, not a deduction by the handler; that is
+    /// why the default is the safe side, and a new endpoint nobody analysed is born without retry
+    /// instead of inheriting it silently. Today the only mark is the OAuth token exchange: none of
+    /// the billing operations is resent, because Banrisul's API documents idempotency for none.
     /// </para>
     /// </remarks>
     internal static class HttpRetryEligibility
     {
-        // Properties, e não Options: HttpRequestMessage.Options só existe a partir do .NET 5, e esta
-        // biblioteca tem netstandard2.0 como alvo.
+        // Properties, not Options: HttpRequestMessage.Options only exists from .NET 5 onwards, and
+        // this library targets netstandard2.0.
         private const string RetrySafeProperty = "BoletoForBanrisul.Client.RetrySafe";
 
         /// <summary>
-        /// Declara que esta requisição pode ser reenviada com segurança, mesmo que o verbo não seja
-        /// idempotente. Use apenas quando repetir a chamada comprovadamente leva ao mesmo estado
-        /// final - não basta parecer inofensiva; na dúvida sobre o que o servidor faz com um segundo
-        /// envio, não marque.
+        /// Declares this request safe to resend, even when the verb is not idempotent. Use it only
+        /// when repeating the call provably leads to the same final state - looking harmless is not
+        /// enough; when in doubt about what the server does with a second send, do not mark it.
         /// </summary>
         /// <remarks>
-        /// A marca viaja em <see cref="HttpRequestMessage.Properties"/>, que
-        /// <see cref="HttpRequestCloner"/> copia, então sobrevive aos clones feitos a cada tentativa.
+        /// The mark travels in <see cref="HttpRequestMessage.Properties"/>, which
+        /// <see cref="HttpRequestCloner"/> copies, so it survives the clone made for each attempt.
         /// </remarks>
         internal static void MarkRetrySafe(this HttpRequestMessage request)
         {
@@ -41,8 +40,8 @@ namespace BoletoForBanrisul.Client.HttpClients
         }
 
         /// <summary>
-        /// Indica se a requisição pode ser reenviada: ou o verbo é idempotente, ou ela foi marcada
-        /// explicitamente com <see cref="MarkRetrySafe"/>.
+        /// Tells whether the request may be resent: either the verb is idempotent, or it was marked
+        /// explicitly with <see cref="MarkRetrySafe"/>.
         /// </summary>
         internal static bool IsRetrySafe(HttpRequestMessage request)
         {

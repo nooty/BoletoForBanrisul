@@ -8,7 +8,7 @@ namespace BoletoForBanrisul.Core.Tests
         [Fact]
         public void Should_Truncate_Strings_With_TruncateStringAttribute()
         {
-            // Arrange: cria um objeto Boleto com strings longas
+            // Arrange: a Boleto with over-long strings.
             var boleto = new Boleto
             {
                 Titulo = new Titulo

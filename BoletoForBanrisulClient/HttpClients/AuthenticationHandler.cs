@@ -11,24 +11,24 @@ using System.Threading.Tasks;
 namespace BoletoForBanrisul.Client.HttpClients
 {
     /// <summary>
-    /// Anexa <c>Authorization: Bearer</c> e <c>bergs-beneficiario</c> em toda requisição. Não existe, no
-    /// Banrisul, chamada não autenticada - ao contrário do Santander, não há aqui um mecanismo de skip.
+    /// Attaches <c>Authorization: Bearer</c> and <c>bergs-beneficiario</c> to every request. At Banrisul
+    /// there is no unauthenticated call - unlike Santander, there is no skip mechanism here.
     /// </summary>
     /// <remarks>
     /// <para>
-    /// Ao receber um 401, este handler assume que o token em cache provavelmente expirou (ou foi revogado)
-    /// desde a última validação - uma condição plausível e autocurável, não necessariamente credenciais
-    /// inválidas - e força exatamente uma renovação (<see cref="IAuthenticator.InvalidateToken"/>), reenviando
-    /// a requisição uma única vez com o token novo. Se esse reenvio também vier 401, a resposta é devolvida
-    /// como está para quem chamou traduzir em <see cref="Exceptions.Auth.UnauthorizedException"/>; este handler
-    /// nunca lança por causa de um status de resposta - quem faz essa tradução é <c>BoletoClient.HandleErrors</c>,
-    /// uma camada acima. Capar o retry em uma única tentativa faz uma requisição com credenciais realmente
-    /// inválidas falhar rápido em vez de entrar em loop.
+    /// On a 401, this handler assumes the cached token has probably expired (or been revoked) since the
+    /// last validation - a plausible, self-healing condition, not necessarily invalid credentials - and
+    /// forces exactly one renewal (<see cref="IAuthenticator.InvalidateToken"/>), resending the request a
+    /// single time with the new token. If that resend also comes back 401, the response is returned as-is
+    /// for the caller to translate into <see cref="Exceptions.Auth.UnauthorizedException"/>; this handler
+    /// never throws over a response status - that translation belongs to <c>BoletoClient.HandleErrors</c>,
+    /// one layer above. Capping the retry at a single attempt makes a request with genuinely invalid
+    /// credentials fail fast instead of looping.
     /// </para>
     /// <para>
-    /// Isso não compete com a política de retry do Polly em <see cref="PolicyHandler"/>: aquela política só
-    /// reage a falhas transitórias de transporte e a 5xx/408 (<c>HandleTransientHttpError</c>), nunca a 401,
-    /// então os dois mecanismos de retry nunca disputam a mesma resposta.
+    /// This does not compete with the Polly retry policy in <see cref="PolicyHandler"/>: that policy only
+    /// reacts to transient transport failures and to 5xx/408 (<c>HandleTransientHttpError</c>), never to
+    /// 401, so the two retry mechanisms never contend over the same response.
     /// </para>
     /// </remarks>
     public class AuthenticationHandler : DelegatingHandler
@@ -36,10 +36,10 @@ namespace BoletoForBanrisul.Client.HttpClients
         private readonly IAuthenticator _authenticator;
         private readonly string _beneficiaryCode;
 
-        /// <summary>Cria o handler.</summary>
-        /// <param name="authenticator">Fornece (e pode invalidar) o token de acesso.</param>
-        /// <param name="beneficiaryCode">Valor enviado no header <c>bergs-beneficiario</c>.</param>
-        /// <param name="innerHandler">O próximo handler da cadeia (tipicamente o handler de transporte).</param>
+        /// <summary>Creates the handler.</summary>
+        /// <param name="authenticator">Supplies (and can invalidate) the access token.</param>
+        /// <param name="beneficiaryCode">Value sent in the <c>bergs-beneficiario</c> header.</param>
+        /// <param name="innerHandler">The next handler in the chain (typically the transport handler).</param>
         public AuthenticationHandler(IAuthenticator authenticator, string beneficiaryCode, HttpMessageHandler innerHandler)
             : base(innerHandler)
         {
@@ -62,8 +62,8 @@ namespace BoletoForBanrisul.Client.HttpClients
                 return response;
             }
 
-            // O token em cache foi rejeitado: força uma renovação e reenvia exatamente uma vez com um clone
-            // da requisição (a HttpRequestMessage original não pode ser enviada mais de uma vez).
+            // The cached token was rejected: force a renewal and resend exactly once with a clone of the
+            // request (the original HttpRequestMessage cannot be sent more than once).
             _authenticator.InvalidateToken();
 
             var retryRequest = HttpRequestCloner.Clone(request, contentBytes, contentHeaders);
@@ -77,10 +77,10 @@ namespace BoletoForBanrisul.Client.HttpClients
         {
             string token = await _authenticator.GetAccessTokenAsync(cancellationToken).ConfigureAwait(false);
 
-            // Atribuir Authorization substitui o valor anterior; mas bergs-beneficiario não é um header
-            // tipado, então precisa ser removido explicitamente antes de reanexado - sem isso, o clone feito
-            // pelo PolicyHandler (que copia os headers da requisição original) enviaria o header duplicado em
-            // cada tentativa do Polly.
+            // Assigning Authorization replaces the previous value; but bergs-beneficiario is not a typed
+            // header, so it has to be removed explicitly before being reattached - without that, the clone
+            // made by PolicyHandler (which copies the original request's headers) would send the header
+            // duplicated on every Polly attempt.
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
             request.Headers.Remove("bergs-beneficiario");
             request.Headers.TryAddWithoutValidation("bergs-beneficiario", _beneficiaryCode);

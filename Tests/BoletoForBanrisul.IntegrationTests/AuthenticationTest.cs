@@ -48,13 +48,13 @@ namespace BoletoForBanrisul.IntegrationTests
 
             var auth = client.Authenticator;
 
-            // Executa o método de autenticação
+            // Runs the authentication.
             var token = await auth.GetAccessTokenAsync();
 
-            // Verifica se o diretório de logs foi criado
+            // The log directory must have been created.
             Assert.True(Directory.Exists(LogDirectory), "Log directory was not created.");
 
-            // Verifica se existem arquivos de log com os prefixos "AuthRequest" e "AuthResponse"
+            // There must be log files prefixed "AuthRequest" and "AuthResponse".
             var logFiles = Directory.GetFiles(LogDirectory, "AuthRequest*").Concat(Directory.GetFiles(LogDirectory, "AuthResponse*")).ToList();
 
             Assert.NotEmpty(logFiles);
@@ -113,7 +113,7 @@ namespace BoletoForBanrisul.IntegrationTests
             Assert.Equal(accessToken2, tokenInMemory.AccessToken);
         }
 
-        // Replica o cálculo de chave de cache usado por Authenticator.ComputeTokenKey.
+        // Mirrors the cache key calculation used by Authenticator.ComputeTokenKey.
         private static string ComputeTokenKey(string clientId, string clientSecret)
         {
             using var sha256 = SHA256.Create();

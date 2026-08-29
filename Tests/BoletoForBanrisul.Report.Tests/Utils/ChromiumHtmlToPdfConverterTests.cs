@@ -116,9 +116,9 @@ namespace BoletoForBanrisul.Report.Tests.Utils
         [Fact]
         public void Constructor_WithASubSecondConversionTimeout_Throws()
         {
-            // A biblioteca recusa qualquer coisa até 1 ms, mas o piso útil é outro: abaixo de um
-            // segundo o Chromium nem termina de subir, então o valor só consegue produzir falha - e
-            // descobrir isso na construção é melhor do que descobrir em produção.
+            // The library refuses anything down to 1 ms, but the useful floor is another: below one
+            // second Chromium does not even finish starting, so the value can only produce failure -
+            // and finding that out at construction beats finding it out in production.
             var tooShort = new[] { TimeSpan.FromMilliseconds(1), TimeSpan.FromMilliseconds(999) };
 
             Assert.All(tooShort, timeout =>
@@ -129,10 +129,11 @@ namespace BoletoForBanrisul.Report.Tests.Utils
         [Fact]
         public void Constructor_WithADeadlineBeyondTheSupportedRange_Throws()
         {
-            // O timeout vira int de milissegundos na chamada da biblioteca e o deadline duro vira um
-            // CancelAfter: passar de int.MaxValue ms trunca no cast ou explode lá dentro. O par no
-            // fim é o caso em que nenhuma parcela sozinha passa do teto, mas a soma passa - e é onde
-            // uma validação escrita como soma estouraria o próprio TimeSpan antes de comparar.
+            // The timeout becomes an int of milliseconds in the library call and the hard deadline
+            // becomes a CancelAfter: going past int.MaxValue ms truncates in the cast or blows up in
+            // there. The pair at the end is the case where neither part alone passes the ceiling but
+            // their sum does - and where a validation written as a sum would overflow TimeSpan itself
+            // before comparing.
             var invalidSettings = new Action<ChromiumConverterSettings>[]
             {
                 settings => settings.ConversionTimeout = TimeSpan.FromDays(30),
@@ -153,7 +154,7 @@ namespace BoletoForBanrisul.Report.Tests.Utils
         [Fact]
         public void Constructor_WithTheMaximumSupportedDeadline_IsAccepted()
         {
-            // O limite pelo outro lado, para a subtração da validação não ficar errada por um tick.
+            // The limit from the other side, so the validation's subtraction is not off by a tick.
             var maximumDeadline = TimeSpan.FromMilliseconds(int.MaxValue);
 
             using var converter = new ChromiumHtmlToPdfConverter(settings =>
@@ -166,8 +167,9 @@ namespace BoletoForBanrisul.Report.Tests.Utils
         [Fact]
         public void Constructor_WithASharedProfileAndConcurrentConversions_Throws()
         {
-            // Um --user-data-dir não sustenta dois Chromium ao mesmo tempo: o segundo morre no
-            // SingletonLock ou repassa o trabalho ao primeiro e sai, devolvendo PDF vazio sem erro.
+            // One --user-data-dir does not sustain two Chromium instances at once: the second dies on
+            // the SingletonLock or hands the work to the first and exits, returning an empty PDF with
+            // no error.
             Assert.Throws<ArgumentException>(() => new ChromiumHtmlToPdfConverter(settings =>
             {
                 settings.UserProfileDirectory = Path.Combine(Path.GetTempPath(), "perfil-compartilhado");
@@ -178,8 +180,8 @@ namespace BoletoForBanrisul.Report.Tests.Utils
         [Fact]
         public void Constructor_WithASharedProfileAndASingleConversion_IsAccepted()
         {
-            // O outro lado da regra: profile compartilhado continua sendo uma escolha válida, desde
-            // que serializada.
+            // The other side of the rule: a shared profile remains a valid choice, as long as it is
+            // serialised.
             using var converter = new ChromiumHtmlToPdfConverter(settings =>
             {
                 settings.UserProfileDirectory = Path.Combine(Path.GetTempPath(), "perfil-compartilhado");

@@ -37,7 +37,7 @@ namespace BoletoForBanrisul.Client.Auth
 
         public void InvalidateToken() => _tokenStorage.InvalidateToken(_tokenKey);
 
-        // Gera uma chave de cache que não expõe o client secret para implementações de ITokenStorage.
+        // Builds a cache key that does not expose the client secret to ITokenStorage implementations.
         private static string ComputeTokenKey(string clientId, string clientSecret)
         {
             using var sha256 = SHA256.Create();
@@ -62,21 +62,21 @@ namespace BoletoForBanrisul.Client.Auth
                 Content = content
             };
 
-            // POST, mas pedir um token não cria nem altera nada do lado do banco - só devolve um
-            // token novo. Sem esta marca, a troca OAuth ficaria sem retry nenhum.
+            // A POST, but asking for a token neither creates nor changes anything on the bank's side -
+            // it just returns a new token. Without this mark, the OAuth exchange would get no retry.
             request.MarkRetrySafe();
 
             var response = await _httpClient.SendAsync(request, cancellationToken);
 
             await LogRequestResponseAsync(request, response);
 
-            // Lança exceção se o código de status for 401 (Unauthorized).
+            // Throws when the status code is 401 (Unauthorized).
             if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
             {
                 throw new UnauthorizedException();
             }
 
-            // Lança exceção genérica para qualquer outro código de erro.
+            // Generic exception for any other error code.
             if (!response.IsSuccessStatusCode)
             {
                 var errorMessage = await response.Content.ReadAsStringAsync();
@@ -85,7 +85,7 @@ namespace BoletoForBanrisul.Client.Auth
 
             var tokenResponse = await response.Content.ReadAsStringAsync();
 
-            // Desserializa o token OAuth.
+            // Deserializes the OAuth token.
             var token = JsonSerializer.Deserialize<OAuthToken>(tokenResponse, new JsonSerializerOptions
             {
                 PropertyNameCaseInsensitive = true,

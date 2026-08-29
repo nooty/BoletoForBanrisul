@@ -7,24 +7,24 @@ using System.Text;
 namespace BoletoForBanrisul.Client.HttpClients
 {
     /// <summary>
-    /// Aplica a política do Polly às requisições que podem ser reenviadas com segurança. As demais
-    /// seguem direto para o handler interno, enviadas uma única vez.
+    /// Applies the Polly policy to requests that are safe to resend. The rest go straight to the
+    /// inner handler, sent a single time.
     /// </summary>
     /// <remarks>
-    /// Quem decide o que é seguro reenviar é <see cref="HttpRetryEligibility"/>, e o motivo de a
-    /// decisão ser por requisição está documentado lá.
+    /// What decides which ones are safe to resend is <see cref="HttpRetryEligibility"/>, and why that
+    /// decision is per request is documented there.
     /// </remarks>
     public class PolicyHandler : DelegatingHandler
     {
         private readonly IAsyncPolicy<HttpResponseMessage> _policy;
         private readonly Func<HttpRequestMessage, bool> _shouldRetry;
 
-        /// <summary>Cria o handler.</summary>
-        /// <param name="policy">A política aplicada às requisições elegíveis a retry.</param>
-        /// <param name="handler">O próximo handler da cadeia.</param>
+        /// <summary>Creates the handler.</summary>
+        /// <param name="policy">The policy applied to retry-eligible requests.</param>
+        /// <param name="handler">The next handler in the chain.</param>
         /// <param name="shouldRetry">
-        /// Decide se uma requisição pode ser reenviada. Quando omitido, só verbos idempotentes e
-        /// requisições explicitamente marcadas como seguras são reenviados.
+        /// Decides whether a request may be resent. When omitted, only idempotent verbs and requests
+        /// explicitly marked as safe are resent.
         /// </param>
         public PolicyHandler(IAsyncPolicy<HttpResponseMessage> policy, HttpMessageHandler handler, Func<HttpRequestMessage, bool>? shouldRetry = null) : base(handler)
         {
@@ -35,26 +35,26 @@ namespace BoletoForBanrisul.Client.HttpClients
         /// <inheritdoc />
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
-            // Requisição que não pode ser reenviada não passa pela política: enviar uma única vez
-            // dispensa bufferizar o corpo, que no registro é o maior payload da API.
+            // A request that cannot be resent does not go through the policy: sending it a single
+            // time spares buffering the body, which on registration is the API's largest payload.
             if (!_shouldRetry(request))
             {
                 return await base.SendAsync(request, cancellationToken);
             }
 
-            // Uma HttpRequestMessage não pode ser enviada mais de uma vez; para que o retry
-            // funcione, o conteúdo é bufferizado e cada nova tentativa envia um clone da requisição.
+            // An HttpRequestMessage cannot be sent more than once; for the retry to work, the content
+            // is buffered and each new attempt sends a clone of the request.
             var contentBytes = request.Content != null ? await request.Content.ReadAsByteArrayAsync() : null;
             var contentHeaders = request.Content?.Headers.ToList();
 
             HttpResponseMessage? previousResponse = null;
             var isFirstAttempt = true;
 
-            // O token vai também para o ExecuteAsync, e não só para o base.SendAsync, para que um
-            // cancelamento durante a espera entre tentativas seja observado na hora.
+            // The token goes to ExecuteAsync as well, not only to base.SendAsync, so that a
+            // cancellation during the wait between attempts is observed right away.
             return await _policy.ExecuteAsync(async attemptCancellationToken =>
             {
-                // Descarta a resposta da tentativa anterior que falhou.
+                // Discards the response of the previous, failed attempt.
                 previousResponse?.Dispose();
                 previousResponse = null;
 

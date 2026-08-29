@@ -4,21 +4,21 @@ using System.Threading;
 namespace BoletoForBanrisul.Report
 {
     /// <summary>
-    /// Renderiza o HTML do boleto a partir do modelo de impressão.
+    /// Renders the boleto's HTML from the print view model.
     /// </summary>
     /// <remarks>
-    /// É separado do <see cref="IBoletoReport"/> porque tem outro tempo de vida: o template é
-    /// configuração de aplicação e o renderizador é caro de montar, enquanto o
-    /// <see cref="PrintSettings"/> pode mudar a cada boleto.
+    /// It is separate from <see cref="IBoletoReport"/> because it has a different lifetime: the template
+    /// is application configuration and the renderer is expensive to build, while the
+    /// <see cref="PrintSettings"/> can change per boleto.
     /// </remarks>
     public interface IBoletoTemplateRenderer
     {
         /// <summary>
-        /// Renderiza o HTML do boleto.
+        /// Renders the boleto's HTML.
         /// </summary>
-        /// <param name="viewModel">O modelo com os dados já preparados para o template.</param>
-        /// <param name="cancellationToken">Token para abortar a renderização.</param>
-        /// <returns>O HTML do boleto.</returns>
+        /// <param name="viewModel">The model carrying the data already prepared for the template.</param>
+        /// <param name="cancellationToken">Token that aborts the rendering.</param>
+        /// <returns>The boleto's HTML.</returns>
         Task<string> RenderAsync(PrintViewModel viewModel, CancellationToken cancellationToken = default);
     }
 }

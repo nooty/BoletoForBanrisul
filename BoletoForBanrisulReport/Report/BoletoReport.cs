@@ -15,13 +15,13 @@ using System.Threading.Tasks;
 namespace BoletoForBanrisul.Report
 {
     /// <summary>
-    /// Gerador de PDF de boletos.
+    /// Generates boleto PDFs.
     /// </summary>
     /// <remarks>
-    /// Depois de construído é imutável e não guarda estado entre chamadas, então pode ser usado
-    /// concorrentemente. Não sincroniza nada por conta própria: o RazorLight já serializa a
-    /// compilação de template por chave, e a concorrência da conversão é decidida pelo
-    /// <see cref="IPdfConverter"/> - serializar aqui anularia a configuração dele.
+    /// Once built it is immutable and keeps no state between calls, so it is safe for concurrent use.
+    /// It synchronises nothing of its own: RazorLight already serialises template compilation per key,
+    /// and conversion concurrency is decided by the <see cref="IPdfConverter"/> - serialising here
+    /// would override its configuration.
     /// </remarks>
     public class BoletoReport : IBoletoReport
     {
@@ -34,23 +34,23 @@ namespace BoletoForBanrisul.Report
         private bool _disposed;
 
         /// <summary>
-        /// Cria o gerador com o template embutido e um conversor fornecido pelo chamador, que
-        /// continua responsável por descartá-lo.
+        /// Creates the generator with the embedded template and a converter supplied by the caller, who
+        /// remains responsible for disposing it.
         /// </summary>
-        /// <param name="settings">Configurações de impressão.</param>
-        /// <param name="pdfConverter">Conversor de HTML para PDF.</param>
+        /// <param name="settings">Print settings.</param>
+        /// <param name="pdfConverter">HTML to PDF converter.</param>
         public BoletoReport(PrintSettings settings, IPdfConverter pdfConverter)
             : this(settings, pdfConverter, RazorBoletoTemplateRenderer.Default, ownsPdfConverter: false)
         {
         }
 
         /// <summary>
-        /// Cria o gerador com um renderizador e um conversor fornecidos pelo chamador, que continua
-        /// responsável por descartá-los.
+        /// Creates the generator with a renderer and a converter supplied by the caller, who remains
+        /// responsible for disposing them.
         /// </summary>
-        /// <param name="settings">Configurações de impressão.</param>
-        /// <param name="pdfConverter">Conversor de HTML para PDF.</param>
-        /// <param name="templateRenderer">Renderizador do HTML do boleto.</param>
+        /// <param name="settings">Print settings.</param>
+        /// <param name="pdfConverter">HTML to PDF converter.</param>
+        /// <param name="templateRenderer">Renderer for the boleto's HTML.</param>
         public BoletoReport(PrintSettings settings, IPdfConverter pdfConverter, IBoletoTemplateRenderer templateRenderer)
             : this(settings, pdfConverter, templateRenderer, ownsPdfConverter: false)
         {
@@ -67,7 +67,7 @@ namespace BoletoForBanrisul.Report
         }
 
         /// <summary>
-        /// O renderizador em uso. Existe para que o compartilhamento seja verificável em teste.
+        /// The renderer in use. It exists so that sharing is verifiable in tests.
         /// </summary>
         internal IBoletoTemplateRenderer TemplateRenderer => _templateRenderer;
 
@@ -214,8 +214,8 @@ namespace BoletoForBanrisul.Report
             if (!string.IsNullOrEmpty(_settings.LogoFilePath) && !File.Exists(_settings.LogoFilePath))
                 throw new InvalidOperationException($"Arquivo para o logo do boleto inválido. File={_settings.LogoFilePath}");
 
-            // A validação do template não está aqui: quem conhece a origem do template é o
-            // IBoletoTemplateRenderer, e ele valida no próprio construtor.
+            // Template validation does not live here: what knows the template's origin is the
+            // IBoletoTemplateRenderer, and it validates in its own constructor.
             if (string.IsNullOrEmpty(_settings.FileNameTemplate))
                 throw new InvalidOperationException("Template para nome de boleto exportado não foi configurado.");
         }
@@ -227,14 +227,14 @@ namespace BoletoForBanrisul.Report
         }
 
         /// <summary>
-        /// Libera os recursos do gerador.
+        /// Releases the generator's resources.
         /// </summary>
         /// <remarks>
-        /// Descarta o conversor de PDF apenas quando foi este objeto que o criou - isto é, quando
-        /// veio do <see cref="BoletoReportBuilder.Build"/> sem
-        /// <see cref="BoletoReportBuilder.SetPdfConverter"/>. Um conversor recebido pronto costuma
-        /// ser compartilhado, e descartá-lo aqui deixaria os próximos relatórios sem conversor. O
-        /// mesmo vale para o renderizador, que nunca é descartado aqui.
+        /// It disposes the PDF converter only when this object created it - that is, when it came from
+        /// <see cref="BoletoReportBuilder.Build"/> without
+        /// <see cref="BoletoReportBuilder.SetPdfConverter"/>. A converter received ready-made is
+        /// usually shared, and disposing it here would leave the next reports without one. The same
+        /// holds for the renderer, which is never disposed here.
         /// </remarks>
         public void Dispose()
         {

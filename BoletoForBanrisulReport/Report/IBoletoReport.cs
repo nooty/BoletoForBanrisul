@@ -5,29 +5,28 @@ using System.Threading;
 namespace BoletoForBanrisul.Report
 {
     /// <summary>
-    /// Gerador de PDF de boletos.
+    /// Generates boleto PDFs.
     /// </summary>
     /// <remarks>
-    /// É <see cref="IDisposable"/> porque o conversor criado pelo <see cref="BoletoReportBuilder"/>
-    /// carrega recursos de processo (semáforo e, indiretamente, o Chromium). Um conversor fornecido
-    /// via <see cref="BoletoReportBuilder.SetPdfConverter"/> continua sendo do chamador e não é
-    /// descartado aqui.
+    /// It is <see cref="IDisposable"/> because the converter created by <see cref="BoletoReportBuilder"/>
+    /// carries process resources (a semaphore and, indirectly, Chromium). A converter supplied through
+    /// <see cref="BoletoReportBuilder.SetPdfConverter"/> remains the caller's and is not disposed here.
     /// </remarks>
     public interface IBoletoReport : IDisposable
     {
         /// <summary>
-        /// Gera um arquivo ZIP contendo boletos em formato PDF.
+        /// Generates a ZIP file holding boletos in PDF format.
         /// </summary>
-        /// <param name="boletos">A coleção de boletos a serem convertidos para PDF e incluídos no arquivo ZIP.</param>
-        /// <param name="cancellationToken">Token para abortar a geração.</param>
-        /// <returns>Um array de bytes representando o arquivo ZIP gerado.</returns>
+        /// <param name="boletos">The boletos to convert to PDF and include in the ZIP file.</param>
+        /// <param name="cancellationToken">Token that aborts the generation.</param>
+        /// <returns>A byte array holding the generated ZIP file.</returns>
         Task<byte[]> ZipBoletosAsync(IEnumerable<Boleto> boletos, CancellationToken cancellationToken = default);
         /// <summary>
-        /// Gera o PDF de um único boleto.
+        /// Generates the PDF of a single boleto.
         /// </summary>
-        /// <param name="boleto">O boleto a ser convertido para PDF.</param>
-        /// <param name="cancellationToken">Token para abortar a geração.</param>
-        /// <returns>Um array de bytes representando o PDF gerado do boleto.</returns>
+        /// <param name="boleto">The boleto to convert to PDF.</param>
+        /// <param name="cancellationToken">Token that aborts the generation.</param>
+        /// <returns>A byte array holding the boleto's generated PDF.</returns>
         Task<byte[]> PrintAsync(Boleto boleto, CancellationToken cancellationToken = default);
     }
 }

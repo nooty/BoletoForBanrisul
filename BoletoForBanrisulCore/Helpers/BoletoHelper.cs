@@ -9,11 +9,11 @@ namespace BoletoForBanrisul.Core.Helpers
     public static class BoletoHelper
     {
         /// <summary>
-        /// Calcula o Nosso Número completo (8 dígitos + 2 dígitos verificadores).
-        /// Completa com zeros à esquerda se o número base tiver menos de 8 dígitos.
+        /// Computes the full nosso número (8 digits + 2 check digits).
+        /// Left-pads with zeros when the base number has fewer than 8 digits.
         /// </summary>
-        /// <param name="baseNumber">Número base para o cálculo.</param>
-        /// <returns>Nosso Número completo com 10 dígitos.</returns>
+        /// <param name="baseNumber">Base number for the calculation.</param>
+        /// <returns>The full 10-digit nosso número.</returns>
         public static string GetOurNumberWithCheckDigits(string baseNumber)
         {
             string numbers = OnlyNumbers(baseNumber).PadLeft(8, '0').Substring(0, 8);
@@ -24,46 +24,46 @@ namespace BoletoForBanrisul.Core.Helpers
         }
 
         /// <summary>
-        /// Gera a linha digitável do boleto.
+        /// Builds the boleto's linha digitável.
         /// </summary>
-        /// <param name="boleto">Dados do boleto.</param>
-        /// <returns>Linha digitável.</returns>
+        /// <param name="boleto">The boleto's data.</param>
+        /// <returns>The linha digitável.</returns>
         public static string GetDigitableLine(Boleto boleto)
         {
-            // 1. Gerar o código de barras completo.
+            // 1. Build the full barcode.
             string barcode = GetBarcode(boleto);
 
-            // 2. Campos da linha digitável.
+            // 2. Fields of the linha digitável.
 
-            // Campo 1: 01 a 04 (Banco + Moeda) + 20 a 24 (Campo Livre) + DV1
+            // Field 1: 01-04 (bank + currency) + 20-24 (free field) + DV1
             string field1 = $"{barcode.Substring(0, 4)}{barcode.Substring(19, 5)}";
             field1 += GetCheckDigitMod10(field1);
 
-            // Campo 2: 25 a 34 (Campo Livre) + DV2
+            // Field 2: 25-34 (free field) + DV2
             string field2 = $"{barcode.Substring(24, 10)}";
             field2 += GetCheckDigitMod10(field2);
 
-            // Campo 3: 35 a 44 (Campo Livre) + DV3
+            // Field 3: 35-44 (free field) + DV3
             string field3 = $"{barcode.Substring(34, 10)}";
             field3 += GetCheckDigitMod10(field3);
 
-            // Campo 4: 5 (DAC)
+            // Field 4: 5 (DAC)
             string field4 = barcode.Substring(4, 1);
 
-            // Campo 5: 6 a 9 (Fator de Vencimento) + 10 a 19 (Valor Nominal)
+            // Field 5: 6-9 (due date factor) + 10-19 (nominal value)
             string field5 = barcode.Substring(5, 14);
 
-            // 3. Montar a linha digitável completa.
+            // 3. Assemble the complete linha digitável.
             return $"{field1}{field2}{field3}{field4}{field5}";
         }
 
         /// <summary>
-        /// Formata uma linha digitável em grupos de números separados por pontos e espaços no formato correto.
-        /// 
+        /// Formats a linha digitável into groups of digits separated by dots and spaces.
+        ///
         /// Ref: 04192.1AAAd1bb ACCCC.CCCNNd2bb NNNNN.N40XXd3bb V FFFF9999999999
         /// </summary>
-        /// <param name="digitableLine">Linha digitável sem formatação.</param>
-        /// <returns>Linha digitável formatada.</returns>
+        /// <param name="digitableLine">The unformatted linha digitável.</param>
+        /// <returns>The formatted linha digitável.</returns>
         public static string FormatDigitableLine(string digitableLine)
         {
             string field1 = digitableLine.Substring(0, 5) + "." + digitableLine.Substring(5, 5);
@@ -76,26 +76,26 @@ namespace BoletoForBanrisul.Core.Helpers
         }
 
         /// <summary>
-        /// Gera o código de barras para o boleto, seguindo o padrão FEBRABAN.
+        /// Builds the boleto's barcode, following the FEBRABAN standard.
         /// </summary>
-        /// <param name="boleto">Dados do boleto.</param>
-        /// <returns>Código de barras gerado.</returns>
+        /// <param name="boleto">The boleto's data.</param>
+        /// <returns>The barcode.</returns>
         public static string GetBarcode(Boleto boleto)
         {
-            // 01 a 03: Código do Banco.
+            // 01-03: bank code.
             string bankCode = "041";
 
-            // 04: Moeda (9 para Real).
+            // 04: currency (9 for Real).
             string currency = "9";
 
-            // 06 a 09: Fator de Vencimento.
+            // 06-09: due date factor.
             string dueDateFactor = GetDueDateFactor(boleto.Titulo.DataVencimento);
 
-            // 10 a 19: Valor Nominal (sem vírgula, com 2 casas decimais).
+            // 10-19: nominal value (no separator, 2 decimal places).
             string nominalValue = boleto.Titulo.ValorNominal > 0 ?
                 ((long)Math.Round(boleto.Titulo.ValorNominal * 100m, MidpointRounding.AwayFromZero)).ToString().PadLeft(10, '0') : "0000000000";
 
-            // 20 a 44: Campo Livre.
+            // 20-44: free field.
             var beneficiary = OnlyNumbers(boleto.Titulo.Beneficiario?.Codigo ?? "").PadLeft(13, '0').Substring(0, 13);
 
             var ourNumberBase = OnlyNumbers(boleto.Titulo.NossoNumero ?? "").PadLeft(8, '0');
@@ -107,61 +107,61 @@ namespace BoletoForBanrisul.Core.Helpers
 
             string freeField = GetFreeField(beneficiary, ourNumber);
 
-            // Montar o código parcial (sem o DAC ainda).
+            // Assemble the partial code (without the DAC yet).
             string partialCode = bankCode + currency + dueDateFactor + nominalValue + freeField;
 
-            // 05: Calcular o DAC (dígito de autoconferência).
+            // 05: compute the DAC (self-check digit).
             string dac = GetDAC(partialCode).ToString();
 
-            // Gerar o código de barras completo.
+            // Build the complete barcode.
             return bankCode + currency + dac + dueDateFactor + nominalValue + freeField;
         }
 
         /// <summary>
-        /// Gera o campo livre do código de barras com base no código do beneficiário e no nosso número.
+        /// Builds the barcode's free field from the beneficiário code and the nosso número.
         /// </summary>
         private static string GetFreeField(string beneficiaryCode, string ourNumber)
         {
-            // Constante 2 nas posições 20 a 20 e Constante 1 nas posições 21 a 21.
+            // Constant 2 at position 20 and constant 1 at position 21.
             string freeField = "21";
 
-            // Posições 22 a 25: 4 primeiras posições do Código de Beneficiário.
+            // Positions 22-25: first 4 positions of the beneficiário code.
             freeField += beneficiaryCode.Substring(0, 4);
 
-            // Posições 26 a 32: Posições 5 a 11 do Código de Beneficiário (sem controle).
+            // Positions 26-32: positions 5-11 of the beneficiário code (without the control digits).
             freeField += beneficiaryCode.Substring(4, 7);
 
-            // Posições 33 a 40: Nosso Número (sem controle).
+            // Positions 33-40: nosso número (without the control digits).
             freeField += ourNumber.Substring(0, 8).PadLeft(8, '0');
 
-            // Posições 41 a 42: Constante 40.
+            // Positions 41-42: constant 40.
             freeField += "40";
 
-            // Posições 43 a 44: Duplo Dígito (módulo 10 e módulo 11).
+            // Positions 43-44: double check digit (mod 10 and mod 11).
             freeField += GetDoubleCheckDigit(freeField);
 
             return freeField;
         }
 
         /// <summary>
-        /// Calcula o duplo dígito verificador com base nos módulos 10 e 11.
+        /// Computes the double check digit from mod 10 and mod 11.
         /// </summary>
         private static string GetDoubleCheckDigit(string baseNumber)
         {
-            // Módulo 10.
+            // Mod 10.
             int dv1 = GetCheckDigitMod10(baseNumber);
 
-            // Módulo 11.
+            // Mod 11.
             string controlNumbers = GetCheckDigitsMod11(baseNumber + dv1);
 
             return controlNumbers.ToString();
         }
 
         /// <summary>
-        /// Calcula o dígito verificador pelo módulo 10.
+        /// Computes the check digit by mod 10.
         /// </summary>
-        /// <param name="number">O número base usado para o cálculo.</param>
-        /// <returns>Dígito verificador calculado pelo módulo 10.</returns>
+        /// <param name="number">The base number used in the calculation.</param>
+        /// <returns>The check digit computed by mod 10.</returns>
         private static int GetCheckDigitMod10(string number)
         {
             int[] weights = { 2, 1 };
@@ -183,10 +183,10 @@ namespace BoletoForBanrisul.Core.Helpers
         }
 
         /// <summary>
-        /// Calcula os dígitos verificadores pelo módulo 11.
+        /// Computes the check digits by mod 11.
         /// </summary>
-        /// <param name="number">O número base usado para o cálculo + DV1 calculado pelo módulo 10.</param>
-        /// <returns>Dígitos verificadores calculados pelo módulo 11.</returns>
+        /// <param name="number">The base number used in the calculation + DV1, computed by mod 10.</param>
+        /// <returns>The check digits computed by mod 11.</returns>
         private static string GetCheckDigitsMod11(string number)
         {
             int[] weights = { 2, 3, 4, 5, 6, 7 };
@@ -221,27 +221,27 @@ namespace BoletoForBanrisul.Core.Helpers
         }
 
         /// <summary>
-        /// Calcula o fator de vencimento com base na data de vencimento.
+        /// Computes the due date factor from the due date.
         /// </summary>
-        /// <param name="dueDate">Data de vencimento do boleto.</param>
-        /// <returns>Fator de vencimento como string de 4 dígitos.</returns>
+        /// <param name="dueDate">The boleto's due date.</param>
+        /// <returns>The due date factor as a 4-digit string.</returns>
         private static string GetDueDateFactor(DateTime dueDate)
         {
             DateTime baseDate = new DateTime(2000, 7, 3);
             int dayDifference = (int)(dueDate.Date - baseDate).TotalDays;
 
-            // Cálculo do fator de vencimento.
+            // The due date factor itself.
             int factor = Math.Max((dayDifference % 9000) + 1000, 0);
 
-            // Retorna o valor como string de 4 dígitos.
+            // Returned as a 4-digit string.
             return factor.ToString("D4");
         }
 
         /// <summary>
-        /// Calcula o DAC (Dígito de Autoconferência) usando o módulo 11.
+        /// Computes the DAC (self-check digit) using mod 11.
         /// </summary>
-        /// <param name="partialCode">Código parcial do boleto (sem o DAC).</param>
-        /// <returns>O dígito DAC calculado.</returns>
+        /// <param name="partialCode">The boleto's partial code (without the DAC).</param>
+        /// <returns>The computed DAC digit.</returns>
         private static int GetDAC(string partialCode)
         {
             int[] weights = { 2, 3, 4, 5, 6, 7, 8, 9 };
