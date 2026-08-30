@@ -11,7 +11,7 @@ namespace BoletoForBanrisul.Core.Validation
     /// The walk is delegated to <see cref="MiniValidator"/>, which descends into nested objects and
     /// collections and aggregates every error in the graph. Two behaviours it is chosen for:
     /// <c>Validator.TryValidateObject</c> does not recurse at all, and it runs
-    /// <see cref="IValidatableObject.Validate"/> only when every attribute passed — which would drop the
+    /// <see cref="IValidatableObject.Validate"/> only when every attribute passed, which would drop the
     /// cross-field rules whenever a <c>[Required]</c> was also missing. MiniValidation calls
     /// <c>Validate()</c> unconditionally instead.
     /// </para>

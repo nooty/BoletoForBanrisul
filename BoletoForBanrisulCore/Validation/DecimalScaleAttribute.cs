@@ -15,8 +15,8 @@ namespace BoletoForBanrisul.Core.Validation
     /// therefore <b>silently rounded on the wire</b>: <c>Multa.Taxa = 0.45m</c> is written as <c>"0.5"</c> by
     /// <see cref="Converters.DecimalF1Converter"/>, and <c>BeneficiarioRateio.Percentual = 16.2534m</c> is
     /// written as <c>"16.253"</c> by <see cref="Converters.DecimalF3Converter"/>. Any local comparison or sum
-    /// performed against the unrounded in-memory value — a rateio percentage sum, an abatement compared
-    /// against the nominal value — then runs on numbers the bank never actually receives, which can pass
+    /// performed against the unrounded in-memory value (a rateio percentage sum, an abatement compared
+    /// against the nominal value) then runs on numbers the bank never actually receives, which can pass
     /// locally and still be rejected (or silently misread) by the bank's own equivalent check.
     /// </para>
     /// <para>

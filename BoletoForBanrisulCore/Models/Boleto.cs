@@ -26,8 +26,8 @@ namespace BoletoForBanrisul.Core.Models
     /// while <see cref="Validation.RecursiveValidator"/> only runs on an outgoing request. So a bank-returned
     /// property (<see cref="Beneficiario"/>, <see cref="CodigoBarras"/>, <see cref="LinhaDigitavel"/>, the
     /// <c>Situacao*</c> ones, <see cref="Carteira"/>, <see cref="Operacoes"/>) must never get
-    /// <see cref="RequiredAttribute"/> or a required-ness rule in <see cref="Validate"/> — a response that
-    /// legitimately omits it would have no path that ever validates. Format-only attributes are safe on both.
+    /// <see cref="RequiredAttribute"/> or a required-ness rule in <see cref="Validate"/>, because a response
+    /// that legitimately omits it would have no path that ever validates. Format-only attributes are safe on both.
     /// </remarks>
     public class Titulo : IValidatableObject
     {
@@ -505,7 +505,7 @@ namespace BoletoForBanrisul.Core.Models
         /// <summary>
         /// <see cref="Types.CodigoJuros.ValorPorDia"/> requires <see cref="Valor"/> and not <see cref="Taxa"/>;
         /// <see cref="Types.CodigoJuros.TaxaMensal"/> the reverse. The "required" half is SPEC, the "must be
-        /// unset" half INFERRED. <see cref="Types.CodigoJuros.Isento"/> is skipped on purpose — see
+        /// unset" half INFERRED. <see cref="Types.CodigoJuros.Isento"/> is skipped on purpose; see
         /// <see cref="Codigo"/>.
         /// </summary>
         /// <inheritdoc />

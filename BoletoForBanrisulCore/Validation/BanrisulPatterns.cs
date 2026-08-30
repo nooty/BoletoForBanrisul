@@ -9,7 +9,7 @@ namespace BoletoForBanrisul.Core.Validation
     /// <para>
     /// Every anchored pattern here ends in <c>\z</c>, not <c>$</c>. In .NET regex, <c>$</c> matches at the
     /// end of the string <b>or immediately before a trailing newline</b>, so <c>^\d{8}$</c> would accept
-    /// <c>"90010260\n"</c> — a value the bank itself rejects. This is a deliberate deviation from how the
+    /// <c>"90010260\n"</c>, a value the bank itself rejects. This is a deliberate deviation from how the
     /// same patterns are written in the Santander sibling library, which uses <c>$</c> throughout; it is not
     /// an oversight there being copied here.
     /// </para>
@@ -18,7 +18,7 @@ namespace BoletoForBanrisul.Core.Validation
     /// the identical character class across <c>pagador.nome</c> (40), <c>beneficiario.nome</c> (60),
     /// <c>mensagens[].texto</c> (75) and several other fields, each with its own <c>maxLength</c>. Writing
     /// the class once and pairing it with a per-property <c>[StringLength(n, MinimumLength = 1)]</c> keeps it
-    /// from being transcribed — and drifting — five separate times, and it means a value with a valid
+    /// from being transcribed (and drifting) five separate times, and it means a value with a valid
     /// character set but the wrong length produces exactly one error (the length one) instead of two,
     /// because <see cref="System.ComponentModel.DataAnnotations.RegularExpressionAttribute"/> and
     /// <see cref="System.ComponentModel.DataAnnotations.StringLengthAttribute"/> both fire independently.
@@ -36,7 +36,7 @@ namespace BoletoForBanrisul.Core.Validation
         /// The character class shared by every free-text field in the schema (names, addresses, cities,
         /// message lines): letters (with the Portuguese accented set), digits, space and a fixed set of
         /// punctuation. Pair with <see cref="System.ComponentModel.DataAnnotations.StringLengthAttribute"/>
-        /// for the length bound — see the type-level remarks.
+        /// for the length bound; see the type-level remarks.
         /// </summary>
         private const string TextClass =
             @"A-Za-z0-9áàâãéêíóôõúüçÁÀÂÃÉÊÍÓÔÕÚÜÇ \\!#$%'()*+,\-./:;=?@\[\]^_`{|}~&";
@@ -47,7 +47,7 @@ namespace BoletoForBanrisul.Core.Validation
         /// <summary>Reference/identifier fields (<c>seu_numero</c>, <c>id_titulo_empresa</c>).</summary>
         public const string Reference = @"^[A-Za-z0-9 %$*+.,/\-&]+\z";
 
-        /// <summary>1 to 10 digits. The response schema requires exactly 10 for <c>nosso_numero</c>, but the bank's own request examples send as few as 3 (e.g. <c>"264"</c>) — the request is looser than the response.</summary>
+        /// <summary>1 to 10 digits. The response schema requires exactly 10 for <c>nosso_numero</c>, but the bank's own request examples send as few as 3 (e.g. <c>"264"</c>): the request is looser than the response.</summary>
         public const string DigitsUpTo10 = @"^\d{1,10}\z";
 
         /// <summary>Exactly 8 digits (<c>cep</c>).</summary>

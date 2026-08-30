@@ -17,7 +17,7 @@ namespace BoletoForBanrisul.Core.Validation
     /// <see cref="string"/> and converts them lazily, on the first call to <c>IsValid</c>, by overwriting its
     /// own <c>Minimum</c>/<c>Maximum</c> properties in place. Validation attributes are cached and reused, so
     /// a single instance is shared by every thread that validates that property. Two threads reaching the
-    /// conversion together — an application registering bank slips concurrently, which is the normal case —
+    /// conversion together (an application registering bank slips concurrently, which is the normal case)
     /// can have one of them read a bound the other has already converted and throw
     /// <see cref="InvalidCastException"/> ("Unable to cast object of type 'System.Decimal' to type
     /// 'System.String'") out of validation. This library has more decimal-typed properties than most
@@ -25,14 +25,14 @@ namespace BoletoForBanrisul.Core.Validation
     /// racing on first use, not fewer.
     /// </para>
     /// <para>
-    /// <b>Its string bounds are parsed with the current culture.</b> Under any comma-decimal locale — pt-BR,
-    /// this library's own audience — <c>"999999999999.99"</c> throws <see cref="ArgumentException"/> instead
+    /// <b>Its string bounds are parsed with the current culture.</b> Under any comma-decimal locale (pt-BR,
+    /// this library's own audience) <c>"999999999999.99"</c> throws <see cref="ArgumentException"/> instead
     /// of validating, unless <c>ParseLimitsInInvariantCulture</c> is remembered at every single usage.
     /// </para>
     /// <para>
     /// Both problems come from the same root: bounds arriving as text and being converted at validation time.
     /// This attribute takes them as <see cref="decimal"/> literals instead, so there is nothing to parse,
-    /// nothing to mutate, and no shared state to race on — the instance is immutable after construction.
+    /// nothing to mutate, and no shared state to race on: the instance is immutable after construction.
     /// </para>
     /// </remarks>
     [AttributeUsage(AttributeTargets.Property, AllowMultiple = false)]
@@ -46,8 +46,8 @@ namespace BoletoForBanrisul.Core.Validation
         /// The bounds arrive as text because an attribute argument cannot be a <see cref="decimal"/> constant,
         /// and as text rather than <see cref="double"/> because <c>999999999999.99</c> has more significant
         /// digits than a <see cref="double"/> holds exactly. Unlike <see cref="RangeAttribute"/>, the parse
-        /// happens exactly once — here, at construction, against
-        /// <see cref="CultureInfo.InvariantCulture"/> — so no validation call can observe a half-converted
+        /// happens exactly once, here at construction against
+        /// <see cref="CultureInfo.InvariantCulture"/>, so no validation call can observe a half-converted
         /// bound and no locale can change the result.
         /// </remarks>
         public DecimalRangeAttribute(string minimum, string maximum)

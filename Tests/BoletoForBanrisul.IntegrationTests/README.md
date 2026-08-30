@@ -14,8 +14,8 @@ This project holds two kinds of test, and they need different things:
 
 | Tests | What they need |
 | --- | --- |
-| `AuthenticationTest`, `BoletoCreateTest`, `BoletoGetTest`, `BoletoCancelTest`, `BoletoChangeDueDateTest`, `BoletoGrantAbatementTest`, `IssueBoletoTest` | Sandbox credentials — they call the real API |
-| `PdfGenerationTest` | A local Chrome/Chromium — it makes no network call |
+| `AuthenticationTest`, `BoletoCreateTest`, `BoletoGetTest`, `BoletoCancelTest`, `BoletoChangeDueDateTest`, `BoletoGrantAbatementTest`, `IssueBoletoTest` | Sandbox credentials: they call the real API |
+| `PdfGenerationTest` | A local Chrome/Chromium: it makes no network call |
 
 Both kinds are gated by the same `RUN_BANRISUL_INTEGRATION_TESTS` variable, so running the PDF tests
 means setting it even though no credential is involved.
@@ -44,7 +44,7 @@ Then run:
 dotnet test Tests/BoletoForBanrisul.IntegrationTests
 ```
 
-The gate accepts `true` or `1`, in any casing. Anything else — including leaving it unset — disables
+The gate accepts `true` or `1`, in any casing. Anything else, including leaving it unset, disables
 the tests, so `dotnet test Tests/BoletoForBanrisul.IntegrationTests` is safe to run as it is: the
 tests report as *Skipped*, with no network call and no browser launched.
 
@@ -68,7 +68,7 @@ The directory path is printed in the test output.
 ## Hunting intermittent failures
 
 `repeat-pdf-tests.ps1` runs the PDF tests repeatedly and writes the full output of every failing run
-to `pdf-test-failures/` — assert, exception and stack trace. It exists because an intermittent failure
+to `pdf-test-failures/`: assert, exception and stack trace. It exists because an intermittent failure
 is only useful if the message is captured at the moment it happens.
 
 ```powershell
