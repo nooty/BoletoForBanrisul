@@ -24,8 +24,12 @@ Key features:
 This package uses shared boleto models from BoletoForBanrisul.Core.
 
 Notes:
-The component uses the ChromiumHtmlToPdfLib library to generate boleto PDFs via headless Chrome/Chromium. A compatible Chrome or Chromium installation must be available in the execution environment.</Description>
+The component uses the ChromeHtmlToPdf package to generate boleto PDFs via headless Chrome/Chromium. A compatible Chrome or Chromium installation must be available in the execution environment.
+
+This is an independent, community project. It is not affiliated with, endorsed by, or supported by Banco do Estado do Rio Grande do Sul (Banrisul).</Description>
+	<PackageTags>boleto banrisul cobranca febraban banco-041 pdf chromium</PackageTags>
 	<PackageLicenseFile>LICENSE</PackageLicenseFile>
+	<PackageReadmeFile>README.md</PackageReadmeFile>
 	<PackageId>$(AssemblyName.Replace("Report", ".Report"))</PackageId>
 	<GenerateDocumentationFile>True</GenerateDocumentationFile>
 	<!-- CS1591: the XML doc file still ships, so the summaries that exist reach consumers; the
@@ -54,6 +58,10 @@ The component uses the ChromiumHtmlToPdfLib library to generate boleto PDFs via 
 
   <ItemGroup>
     <None Include="..\LICENSE">
+      <Pack>True</Pack>
+      <PackagePath>\</PackagePath>
+    </None>
+    <None Include="..\README.md">
       <Pack>True</Pack>
       <PackagePath>\</PackagePath>
     </None>

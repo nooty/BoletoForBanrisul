@@ -24,10 +24,14 @@ Key features:
 
 The component also manages the OAuth2 authentication process. Returned tokens are cached for reuse, making it easier to interact with the billing API.
 
-For local export of boletos in PDF format, use the complementary component BoletoForBanrisul.Report.</Description>
+For local export of boletos in PDF format, use the complementary component BoletoForBanrisul.Report.
+
+This is an independent, community project. It is not affiliated with, endorsed by, or supported by Banco do Estado do Rio Grande do Sul (Banrisul). Using the API requires credentials the bank issues to your organization.</Description>
+    <PackageTags>boleto banrisul cobranca febraban banco-041 api oauth2</PackageTags>
     <PackageProjectUrl>https://github.com/nooty/BoletoForBanrisul</PackageProjectUrl>
     <RepositoryUrl>https://github.com/nooty/BoletoForBanrisul</RepositoryUrl>
     <PackageLicenseFile>LICENSE</PackageLicenseFile>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
     <GenerateDocumentationFile>True</GenerateDocumentationFile>
     <!-- CS1591: the XML doc file still ships, so the summaries that exist reach consumers; the
          members without one do not fail the build. -->
@@ -47,6 +51,10 @@ For local export of boletos in PDF format, use the complementary component Bolet
 
   <ItemGroup>
     <None Include="..\LICENSE">
+      <Pack>True</Pack>
+      <PackagePath>\</PackagePath>
+    </None>
+    <None Include="..\README.md">
       <Pack>True</Pack>
       <PackagePath>\</PackagePath>
     </None>

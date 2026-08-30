@@ -11,10 +11,23 @@
     <Title>BoletoForBanrisul.Core</Title>
     <Authors>Wendell Gasparoni</Authors>
     <Product>BoletoForBanrisul.Core</Product>
-    <Description>Shared boleto models, helpers and JSON converters used by BoletoForBanrisul.Client and BoletoForBanrisul.Report.</Description>
+    <Description>BoletoForBanrisul.Core carries what BoletoForBanrisul.Client and BoletoForBanrisul.Report share: the boleto model, its JSON contract with Banrisul's billing API, and the calculations a boleto needs.
+
+Key features:
+
+1. Boleto models mirroring the bank's payloads, with JSON converters for its formats
+2. Local validation of a boleto before it is sent, reporting every offending field at once
+3. CPF and CNPJ check digit validation
+4. Barcode and linha digitável computation, following the FEBRABAN standard
+
+Install it on its own only to use the models, the validator and the calculations: BoletoForBanrisul.Client and BoletoForBanrisul.Report already bring it in.
+
+This is an independent, community project. It is not affiliated with, endorsed by, or supported by Banco do Estado do Rio Grande do Sul (Banrisul).</Description>
+    <PackageTags>boleto banrisul cobranca febraban banco-041 models validation</PackageTags>
     <PackageProjectUrl>https://github.com/nooty/BoletoForBanrisul</PackageProjectUrl>
     <RepositoryUrl>https://github.com/nooty/BoletoForBanrisul</RepositoryUrl>
     <PackageLicenseFile>LICENSE</PackageLicenseFile>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
     <GenerateDocumentationFile>True</GenerateDocumentationFile>
     <!-- CS1591: the XML doc file still ships, so the summaries that exist reach consumers; the
          members without one do not fail the build. -->
@@ -24,6 +37,10 @@
 
   <ItemGroup>
     <None Include="..\LICENSE">
+      <Pack>True</Pack>
+      <PackagePath>\</PackagePath>
+    </None>
+    <None Include="..\README.md">
       <Pack>True</Pack>
       <PackagePath>\</PackagePath>
     </None>

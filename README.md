@@ -581,9 +581,9 @@ dotnet test Tests/BoletoForBanrisul.Report.Tests
 `Tests/BoletoForBanrisul.IntegrationTests` holds the tests that reach outside: those that call the
 real Banrisul API, which need credentials, and those that render PDFs through a real Chrome, which
 need the browser. All of them are disabled by default. See
-[Tests/BoletoForBanrisul.IntegrationTests/README.md](Tests/BoletoForBanrisul.IntegrationTests/README.md)
+[Tests/BoletoForBanrisul.IntegrationTests/README.md](https://github.com/nooty/BoletoForBanrisul/blob/main/Tests/BoletoForBanrisul.IntegrationTests/README.md)
 to configure and run them.
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT — see [LICENSE](https://github.com/nooty/BoletoForBanrisul/blob/main/LICENSE).
