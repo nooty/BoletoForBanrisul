@@ -21,7 +21,7 @@ namespace BoletoForBanrisul.Client
         private bool _useSandbox = false;
         private ITokenStorage? _tokenStorage;
         private RequestModeType _requestMode = RequestModeType.Production;
-        private HttpMessageHandler? _transportHandlerOverride;
+        private HttpMessageHandler? _transportHandler;
 
         private string _beneficiaryCode = "";
         private string _clientId = "";
@@ -44,13 +44,13 @@ namespace BoletoForBanrisul.Client
         /// <remarks>
         /// It replaces the bottom of the chain, not the whole <see cref="HttpClient"/>, so that every layer
         /// above - retries, timeout, token attachment, the <c>bergs-beneficiario</c> header - stays active
-        /// and under test.
+        /// and under test. The built client never disposes it, same as the shared default transport.
         /// </remarks>
         /// <param name="handler">The transport handler to use in place of the default.</param>
         /// <returns></returns>
         internal BoletoClientBuilder SetTransportHandler(HttpMessageHandler handler)
         {
-            _transportHandlerOverride = handler ?? throw new ArgumentNullException(nameof(handler));
+            _transportHandler = handler ?? throw new ArgumentNullException(nameof(handler));
             return this;
         }
 
@@ -148,6 +148,7 @@ namespace BoletoForBanrisul.Client
             // The authenticator gets its own HttpClient, deliberately separate from the one used below for
             // the API calls: that one carries the AuthenticationHandler, which in turn calls back into this
             // authenticator to attach the token on every request - reusing it here would be circular.
+            // Both sit on the same shared transport, so the split costs no extra connections.
             var authenticatorHttpClient = new ResilientHttpClientBuilder().SetHandler(CreateTransportHandler()).Build();
             _authenticator = new Authenticator(authSettings, _tokenStorage, authenticatorHttpClient);
 
@@ -204,15 +205,11 @@ namespace BoletoForBanrisul.Client
             };
         }
 
-        // Returns the test override when set; otherwise always creates a new instance of the default
-        // transport handler - two HttpClients disposing the same instance would be a double dispose,
-        // since Build() assembles two HttpClients (authenticator and API).
+        // The test override when set, otherwise the process-wide transport. One instance serves both
+        // HttpClients safely because neither of them owns (or disposes) its handler chain.
         private HttpMessageHandler CreateTransportHandler()
         {
-            return _transportHandlerOverride ?? new StandardSocketsHttpHandler
-            {
-                PooledConnectionIdleTimeout = TimeSpan.FromMinutes(2)
-            };
+            return _transportHandler ?? DefaultTransportHandler.Instance;
         }
 
         private string CombineUrl(string baseUrl, string resource)

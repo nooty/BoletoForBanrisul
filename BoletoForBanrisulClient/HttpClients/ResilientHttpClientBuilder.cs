@@ -32,6 +32,10 @@ namespace BoletoForBanrisul.Client.HttpClients
             return this;
         }
 
+        /// <summary>
+        /// Sets the handler the built HttpClient sends through. The builder never takes ownership of it:
+        /// disposing the HttpClient leaves the handler alive.
+        /// </summary>
         public ResilientHttpClientBuilder SetHandler(HttpMessageHandler handler)
         {
             _httpClientHandler = handler;
@@ -54,12 +58,12 @@ namespace BoletoForBanrisul.Client.HttpClients
                 .HandleTransientHttpError()
                 .WaitAndRetryAsync(retryDelays);
 
-            // Falls back to the default handler when no custom one was supplied.
-            _httpClientHandler ??= new StandardSocketsHttpHandler() {
-                PooledConnectionIdleTimeout = TimeSpan.FromMinutes(2),
-            };
-           
-            var httpClient = new HttpClient(new PolicyHandler(retryPolicy, _httpClientHandler))
+            // Falls back to the shared transport when no custom handler was supplied.
+            _httpClientHandler ??= DefaultTransportHandler.Instance;
+
+            // The HttpClient never owns the chain: the transport is shared across clients and the
+            // DelegatingHandlers above it hold no unmanaged resources.
+            var httpClient = new HttpClient(new PolicyHandler(retryPolicy, _httpClientHandler), disposeHandler: false)
             {
                 Timeout = _timeout
             };

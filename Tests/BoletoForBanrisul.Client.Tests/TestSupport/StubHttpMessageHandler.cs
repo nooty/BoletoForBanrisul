@@ -20,12 +20,21 @@ namespace BoletoForBanrisul.Client.Tests.TestSupport
         /// <summary>The body of each request in <see cref="Requests"/> (by index), or <c>null</c> when the request had no content.</summary>
         public List<string?> RequestBodies { get; } = new();
 
+        /// <summary>Whether something up the chain disposed this handler.</summary>
+        public bool Disposed { get; private set; }
+
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
             Requests.Add(request);
             RequestBodies.Add(request.Content is null ? null : await request.Content.ReadAsStringAsync(cancellationToken));
 
             return _responder(request);
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            Disposed = true;
+            base.Dispose(disposing);
         }
     }
 }

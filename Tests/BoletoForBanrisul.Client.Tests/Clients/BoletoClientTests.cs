@@ -420,7 +420,8 @@ namespace BoletoForBanrisul.Client.Tests.Clients
         // --- Dispose: ownership of the HttpClient. ---
         // BoletoClientBuilder always builds two HttpClient instances (one for the API, wired with the
         // AuthenticationHandler, and one dedicated to the authenticator's own token exchange) and nothing
-        // else ever references either one, so BoletoClient unconditionally owns and disposes both.
+        // else ever references either one, so BoletoClient unconditionally owns and disposes both. The
+        // transport underneath is shared and stays alive; see BoletoClientBuilderTests for that side.
 
         [Fact]
         public async Task Dispose_DisposesTheHttpClient_WhenTheClientOwnsIt()

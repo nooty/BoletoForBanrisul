@@ -80,5 +80,18 @@ namespace BoletoForBanrisul.Client.Tests.HttpClients
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
             Assert.Single(stub.Requests);
         }
+
+        [Fact]
+        public void Build_DisposingTheHttpClient_LeavesTheHandlerAlive()
+        {
+            var stub = new StubHttpMessageHandler(_ => new HttpResponseMessage(HttpStatusCode.OK));
+
+            var httpClient = new ResilientHttpClientBuilder()
+                .SetHandler(stub)
+                .Build();
+            httpClient.Dispose();
+
+            Assert.False(stub.Disposed);
+        }
     }
 }

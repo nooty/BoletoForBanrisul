@@ -32,7 +32,8 @@ namespace BoletoForBanrisul.Client
         /// <param name="authenticatorHttpClient">HttpClient used by <paramref name="authenticator"/> for the OAuth token exchange.</param>
         /// <remarks>
         /// <see cref="BoletoClientBuilder"/> always owns both HttpClients - nothing else references them -
-        /// so both are disposed in <see cref="Dispose"/> unconditionally.
+        /// so both are disposed in <see cref="Dispose"/> unconditionally. The transport underneath them is
+        /// shared across clients and is not disposed with them.
         /// </remarks>
         public BoletoClient(ClientSettings config, IAuthenticator authenticator, HttpClient httpClient, HttpClient authenticatorHttpClient)
         {
@@ -43,8 +44,9 @@ namespace BoletoForBanrisul.Client
         }
 
         /// <summary>
-        /// Releases the client's resources, disposing the two HttpClients created by
-        /// <see cref="BoletoClientBuilder"/> (the API's and the authenticator's).
+        /// Disposes the two HttpClients created by <see cref="BoletoClientBuilder"/> (the API's and the
+        /// authenticator's): pending requests are cancelled and new ones are refused. The shared
+        /// transport and its connection pool are left untouched, so no socket is closed here.
         /// </summary>
         public void Dispose()
         {

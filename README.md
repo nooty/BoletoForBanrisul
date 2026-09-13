@@ -114,8 +114,8 @@ bank never saw: pass a `Boleto` you filled in yourself and it computes the barco
 digitável from its fields.
 
 The `using var client` above also shows the default lifecycle: build a client for one unit of work
-and dispose it when that work is done. An application may keep and share one instance only when its
-credentials, beneficiário and request mode remain fixed. See [Using the client](#using-the-client).
+and dispose it when that work is done. This is cheap even under load, because every client sends
+through one connection pool shared by the whole process. See [Using the client](#using-the-client).
 
 ## Using the client
 
@@ -148,14 +148,54 @@ logging off in production unless you are actively investigating something.
 
 `SetAuthentication`, `SetBeneficiary` and `SetRequestMode` are frozen into each `IBoletoClient` at
 `Build()`. The default lifecycle is therefore to build a client for one unit of work and dispose it
-afterward (`using var client = ...`). This is required when the configuration can change, as in a
-multi-tenant application with different credentials or a different beneficiário per request. Each
-client is `IDisposable` because it owns the two `HttpClient` instances created by the builder: one for
-the API and another for the token endpoint.
+afterward (`using var client = ...`). Each client is `IDisposable` because it owns the two
+`HttpClient` instances created by the builder: one for the API and another for the token endpoint.
+Disposing the client releases those two objects and their handler chains, nothing more.
 
-If the credentials, beneficiário and request mode stay fixed, keeping one `IBoletoClient` and sharing
-it across requests is a valid optimization. The DI registration below follows the default per-use
-lifecycle and deliberately registers the builder rather than the built client.
+### Connections
+
+Every client, whichever way it was built, sends through a single `StandardSocketsHttpHandler` shared
+by the whole process. It is never disposed: idle connections close after two minutes, every
+connection is recycled after fifteen minutes so that DNS changes are picked up, and the system proxy
+is honoured. This is the long-lived transport the
+[HttpClient guidelines](https://learn.microsoft.com/dotnet/fundamentals/networking/http/httpclient-guidelines)
+recommend, and it means that building and disposing a client opens and closes no sockets. Build one
+per request, one per tenant, one per operation: none of that exhausts ports or repeats TLS handshakes.
+
+### Multi-tenant applications
+
+Credentials, beneficiário and request mode are frozen into each `IBoletoClient` at `Build()`, so
+each tenant needs its own client. The default pattern is to build one per request and dispose it
+when the work is done:
+
+```csharp
+using var client = new BoletoClientBuilder()
+    .SetAuthentication(tenant.ClientId, tenant.ClientSecret)
+    .SetBeneficiary(tenant.BeneficiaryCode)
+    .Build();
+```
+
+This is cheap. Every client shares the process-wide connection pool, so building and disposing one
+opens no sockets, and `SharedInMemoryTokenStorage` caches the OAuth token per credential, so a tenant
+authenticates once no matter how many clients are built for it. With DI, inject `BoletoClientBuilder`
+and do the same.
+
+Keeping one client per tenant saves only the allocation of two `HttpClient` objects and their handler
+chain. If you want that, cache clients by tenant and do not dispose the cached instances:
+
+```csharp
+private readonly ConcurrentDictionary<string, IBoletoClient> _clients = new();
+
+IBoletoClient ClientFor(Tenant tenant) =>
+    _clients.GetOrAdd(tenant.Id, _ => new BoletoClientBuilder()
+        .SetAuthentication(tenant.ClientId, tenant.ClientSecret)
+        .SetBeneficiary(tenant.BeneficiaryCode)
+        .Build());
+```
+
+Remove the entry when a tenant's credentials or beneficiário change. Under a race `GetOrAdd` may
+build two clients and keep one; the other is garbage collected and holds no connections, so nothing
+needs to be done about it.
 
 ### Operations
 
@@ -193,7 +233,7 @@ fresh one and sends that operation one more time. A second `401` is surfaced as
 
 For retry-enabled requests, transient failures (connection errors, 5xx, 408) are retried three times
 with decorrelated jitter backoff starting at one second, and every request times out after 100
-seconds.
+seconds. Retries reuse the shared connection pool described in [Connections](#connections).
 
 Which calls enter this transient-failure retry policy is decided per request, not per client. Only
 operations that do not mutate boleto state enter it:
@@ -471,7 +511,7 @@ var response = await client.CreateBoletoAsync(boleto, cancellationToken);
 
 `IBoletoClient` is deliberately **not** registered either, for the same reason as `IBoletoReport`: it
 is what `Build()` freezes credentials and beneficiário into, and those can differ from one resolution
-to the next.
+to the next. Building one per resolution costs no connections, see [Connections](#connections).
 
 To register the report builder:
 

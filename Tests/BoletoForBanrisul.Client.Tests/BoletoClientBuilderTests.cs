@@ -1,3 +1,4 @@
+using BoletoForBanrisul.Client.HttpClients;
 using BoletoForBanrisul.Client.Settings;
 using BoletoForBanrisul.Client.Tests.TestSupport;
 using System.Net;
@@ -132,6 +133,48 @@ namespace BoletoForBanrisul.Client.Tests
 
             var sent = Assert.Single(stub.ApiRequests());
             Assert.Equal("api.banrisul.com.br", sent.RequestUri!.Host);
+        }
+
+        // --- Transport ownership: the client owns its HttpClients, never the transport underneath. ---
+
+        [Fact]
+        public void Dispose_DoesNotDisposeTheTransportHandler()
+        {
+            var (builder, stub) = StubClientFactory.CreateBoletoClientBuilder(_ => new HttpResponseMessage(HttpStatusCode.OK));
+
+            var client = builder.Build();
+            client.Dispose();
+
+            Assert.False(stub.Disposed);
+        }
+
+        [Fact]
+        public async Task Build_Twice_OnTheSameTransport_KeepsWorkingAfterTheFirstClientIsDisposed()
+        {
+            var (builder, stub) = StubClientFactory.CreateBoletoClientBuilder(
+                _ => new HttpResponseMessage(HttpStatusCode.OK)
+                {
+                    Content = new StringContent("{\"retorno\":\"01\",\"titulo\":{}}", Encoding.UTF8, "application/json")
+                });
+
+            var first = builder.Build();
+            first.Dispose();
+
+            using var second = builder.Build();
+            await second.GetBoletoAsync("0000038806");
+
+            Assert.Single(stub.ApiRequests());
+        }
+
+        [Fact]
+        public void CreateTransportHandler_WithoutOverride_ReturnsTheSharedDefaultTransport()
+        {
+            var builder = new BoletoClientBuilder();
+            var method = typeof(BoletoClientBuilder).GetMethod("CreateTransportHandler", BindingFlags.NonPublic | BindingFlags.Instance)!;
+
+            var handler = method.Invoke(builder, Array.Empty<object>());
+
+            Assert.Same(DefaultTransportHandler.Instance, handler);
         }
     }
 }

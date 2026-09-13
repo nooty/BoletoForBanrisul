@@ -7,9 +7,10 @@ namespace BoletoForBanrisul.Client.Tests.TestSupport
     /// Builds a <see cref="BoletoClient"/> over a single <see cref="StubHttpMessageHandler"/>, wired in via
     /// <see cref="BoletoClientBuilder.SetTransportHandler"/> so no real network call is ever made - not to the
     /// Banrisul API, not to the OAuth token endpoint. The same stub serves both the API HttpClient and the
-    /// authenticator's HttpClient, since <see cref="BoletoClientBuilder.Build"/> now builds two on top of the
-    /// same transport handler. The stub answers the token exchange itself (see <see cref="TokenOkResponse"/>)
-    /// so tests only need to supply a responder for the actual API call(s) under test.
+    /// authenticator's HttpClient, since <see cref="BoletoClientBuilder.Build"/> builds two on top of the
+    /// same transport handler, and neither disposes it: the stub outlives the client just like the shared
+    /// transport does in production. The stub answers the token exchange itself (see
+    /// <see cref="TokenOkResponse"/>) so tests only need to supply a responder for the API call(s) under test.
     /// </summary>
     internal static class StubClientFactory
     {

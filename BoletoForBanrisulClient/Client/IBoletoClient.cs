@@ -18,7 +18,8 @@ namespace BoletoForBanrisul.Client
     /// It implements <see cref="IDisposable"/> because <see cref="BoletoClientBuilder"/> always assembles
     /// and owns the two internal HttpClients (the API's and the authenticator's). Call
     /// <see cref="IDisposable.Dispose"/> (or use a using block) to release them once the client is no
-    /// longer in use.
+    /// longer in use. Disposing a client closes no connections: every client sends through one
+    /// process-wide transport, so building one per unit of work is cheap even under load.
     /// </para>
     /// <para>
     /// Every operation reports a bank error as an <see cref="ApiException"/>, whose concrete type follows
