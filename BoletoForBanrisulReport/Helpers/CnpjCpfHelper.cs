@@ -17,19 +17,19 @@ namespace BoletoForBanrisul.Report.Helpers
 
             cpfCnpj = cpfCnpj.Trim();
 
-            // Formatar CPF (11 dígitos)
+            // Format CPF (11 digits).
             if (cpfCnpj.Length == 11)
             {
                 return $"{cpfCnpj.Substring(0, 3)}.{cpfCnpj.Substring(3, 3)}.{cpfCnpj.Substring(6, 3)}-{cpfCnpj.Substring(9, 2)}";
             }
 
-            // Formatar CNPJ (14 dígitos)
+            // Format CNPJ (14 characters; its 12-character base may be alphanumeric).
             if (cpfCnpj.Length == 14)
             {
                 return $"{cpfCnpj.Substring(0, 2)}.{cpfCnpj.Substring(2, 3)}.{cpfCnpj.Substring(5, 3)}/{cpfCnpj.Substring(8, 4)}-{cpfCnpj.Substring(12, 2)}";
             }
 
-            return cpfCnpj; // Se o tamanho não for compatível com CPF ou CNPJ
+            return cpfCnpj; // Preserve values whose length does not match CPF or CNPJ.
         }
     }
 }

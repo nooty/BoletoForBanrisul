@@ -1,9 +1,10 @@
 namespace BoletoForBanrisul.Core.Validation
 {
     /// <summary>
-    /// Regular expressions and numeric bounds transcribed from the bank's JSON Schema
+    /// Regular expressions and numeric bounds based on the bank's JSON Schema
     /// (<c>Docs/Ambiente-Cobrança-v1.6.0.postman_environment.json</c>, key
-    /// <c>schemaRespostaRegistrarBoleto</c>), used across the model's <see cref="System.ComponentModel.DataAnnotations.RegularExpressionAttribute"/>s.
+    /// <c>schemaRespostaRegistrarBoleto</c>) and subsequent published contract changes, used across the
+    /// model's <see cref="System.ComponentModel.DataAnnotations.RegularExpressionAttribute"/>s.
     /// </summary>
     /// <remarks>
     /// <para>
@@ -59,8 +60,8 @@ namespace BoletoForBanrisul.Core.Validation
         /// <summary>Exactly 44 digits (<c>notas_fiscais[].danfe</c>).</summary>
         public const string Digits44 = @"^\d{44}\z";
 
-        /// <summary>Exactly 11 (CPF) or 14 (CNPJ) digits.</summary>
-        public const string CpfOrCnpj = @"^(\d{11}|\d{14})\z";
+        /// <summary>Exactly 11 CPF digits, or 12 uppercase alphanumeric CNPJ characters followed by 2 check digits.</summary>
+        public const string CpfOrCnpj = @"^(?:[0-9]{11}|[A-Z0-9]{12}[0-9]{2})\z";
 
         /// <summary>Exactly 2 uppercase letters (<c>uf</c>).</summary>
         public const string Uf = @"^[A-Z]{2}\z";

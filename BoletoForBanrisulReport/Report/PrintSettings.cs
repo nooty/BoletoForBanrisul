@@ -29,12 +29,12 @@ namespace BoletoForBanrisul.Report
         /// Available placeholders:
         /// - {NossoNumero}: the boleto's unique identifier.
         /// - {SeuNumero}: reference number set by the client.
-        /// - {CpfCnpjPagador}: the pagador's CPF or CNPJ (digits only).
+        /// - {CpfCnpjPagador}: the pagador's CPF or CNPJ (letters and digits only).
         /// - {NomePagador}: the pagador's name.
         /// - {DataVencimento}: the boleto's due date, formatted "yyyyMMdd".
         /// - {DataEmissao}: the boleto's issue date, formatted "yyyyMMdd".
         /// - {NomeBeneficiario}: the beneficiário's name (who receives the payment).
-        /// - {CpfCnpjBeneficiario}: the beneficiário's CPF or CNPJ (digits only).
+        /// - {CpfCnpjBeneficiario}: the beneficiário's CPF or CNPJ (letters and digits only).
         ///
         /// Example: "boleto_{NossoNumero}_{DataVencimento}" yields something like "boleto_12345_20220301.pdf".
         /// </summary>

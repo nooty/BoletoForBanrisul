@@ -11,28 +11,31 @@ namespace BoletoForBanrisul.Core.Validation
     {
         /// <summary>
         /// Validates that <paramref name="documentNumber"/> has the length required by
-        /// <paramref name="tipoPessoa"/> (11 digits for CPF, 14 for CNPJ) and passes its check-digit
-        /// algorithm.
+        /// <paramref name="tipoPessoa"/> (11 digits for CPF, 14 characters for CNPJ) and passes its
+        /// check-digit algorithm.
         /// </summary>
         /// <param name="tipoPessoa">The declared kind of document holder.</param>
-        /// <param name="documentNumber">The document number, digits only or with punctuation.</param>
+        /// <param name="documentNumber">The document number, optionally with punctuation.</param>
         /// <param name="memberName">The member path to attach to any reported error.</param>
         /// <returns>Zero or more <see cref="ValidationResult"/>s describing what is wrong.</returns>
         public static IEnumerable<ValidationResult> Validate(TipoPessoa tipoPessoa, string? documentNumber, string memberName)
         {
-            string digits = OnlyDigits(documentNumber ?? "");
+            string normalized = tipoPessoa == TipoPessoa.PessoaFisica
+                ? OnlyDigits(documentNumber ?? "")
+                : OnlyAsciiLettersAndDigits(documentNumber ?? "");
             string label = tipoPessoa == TipoPessoa.PessoaFisica ? "CPF" : "CNPJ";
             int expectedLength = tipoPessoa == TipoPessoa.PessoaFisica ? 11 : 14;
+            string unit = tipoPessoa == TipoPessoa.PessoaFisica ? "digits" : "characters";
 
-            if (digits.Length != expectedLength)
+            if (normalized.Length != expectedLength)
             {
                 yield return new ValidationResult(
-                    $"{memberName} must have {expectedLength} digits for {label}, but has {digits.Length}.",
+                    $"{memberName} must have {expectedLength} {unit} for {label}, but has {normalized.Length}.",
                     new[] { memberName });
                 yield break;
             }
 
-            bool valid = tipoPessoa == TipoPessoa.PessoaFisica ? IsValidCpf(digits) : IsValidCnpj(digits);
+            bool valid = tipoPessoa == TipoPessoa.PessoaFisica ? IsValidCpf(normalized) : IsValidCnpj(normalized);
             if (!valid)
             {
                 yield return new ValidationResult(
@@ -59,11 +62,13 @@ namespace BoletoForBanrisul.Core.Validation
             return cpf[9] - '0' == firstCheck && cpf[10] - '0' == secondCheck;
         }
 
-        /// <summary>Validates the two check digits of a 14-digit CNPJ.</summary>
-        /// <param name="cnpj">Exactly 14 digits, no punctuation.</param>
+        /// <summary>Validates the two numeric check digits of a 14-character alphanumeric CNPJ.</summary>
+        /// <param name="cnpj">Exactly 12 uppercase ASCII letters or digits followed by 2 digits, with no punctuation.</param>
         public static bool IsValidCnpj(string cnpj)
         {
-            if (string.IsNullOrEmpty(cnpj) || cnpj.Length != 14 || !AllDigits(cnpj))
+            if (string.IsNullOrEmpty(cnpj) || cnpj.Length != 14 ||
+                !AllUppercaseAsciiLettersOrDigits(cnpj.Substring(0, 12)) ||
+                !AllDigits(cnpj.Substring(12, 2)))
                 return false;
 
             if (AllSameDigit(cnpj))
@@ -76,14 +81,15 @@ namespace BoletoForBanrisul.Core.Validation
         }
 
         /// <summary>
-        /// The shared CPF/CNPJ check-digit recipe: multiply each digit by its weight, sum, take the
-        /// remainder mod 11, and fold remainders of 0 or 1 down to 0.
+        /// The shared CPF/CNPJ check-digit recipe: convert each character to its ASCII code minus 48,
+        /// multiply it by its weight, sum, take the remainder mod 11, and fold remainders of 0 or 1
+        /// down to 0. For decimal digits, the conversion is the usual numeric value.
         /// </summary>
-        private static int ComputeMod11Digit(string digits, int[] weights)
+        private static int ComputeMod11Digit(string characters, int[] weights)
         {
             int sum = 0;
-            for (int i = 0; i < digits.Length; i++)
-                sum += (digits[i] - '0') * weights[i];
+            for (int i = 0; i < characters.Length; i++)
+                sum += (characters[i] - '0') * weights[i];
 
             int remainder = sum % 11;
             return remainder < 2 ? 0 : 11 - remainder;
@@ -93,6 +99,15 @@ namespace BoletoForBanrisul.Core.Validation
         {
             foreach (char c in value)
                 if (c < '0' || c > '9')
+                    return false;
+
+            return true;
+        }
+
+        private static bool AllUppercaseAsciiLettersOrDigits(string value)
+        {
+            foreach (char c in value)
+                if (!((c >= '0' && c <= '9') || (c >= 'A' && c <= 'Z')))
                     return false;
 
             return true;
@@ -119,6 +134,20 @@ namespace BoletoForBanrisul.Core.Validation
             foreach (char c in text)
             {
                 if (c >= '0' && c <= '9')
+                    chars[count++] = c;
+            }
+
+            return new string(chars, 0, count);
+        }
+
+        /// <summary>Strips CNPJ punctuation while preserving the uppercase alphanumeric base and check digits.</summary>
+        private static string OnlyAsciiLettersAndDigits(string text)
+        {
+            var chars = new char[text.Length];
+            int count = 0;
+            foreach (char c in text)
+            {
+                if ((c >= '0' && c <= '9') || (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z'))
                     chars[count++] = c;
             }
 

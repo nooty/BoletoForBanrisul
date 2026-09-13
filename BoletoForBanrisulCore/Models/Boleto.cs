@@ -418,8 +418,9 @@ namespace BoletoForBanrisul.Core.Models
         public Aceite Aceite { get; set; } = Aceite.Nao;
 
         /// <summary>
-        /// CPF/CNPJ check digits, plus the length required by <see cref="TipoPessoa"/> (11 for CPF, 14 for
-        /// CNPJ): the regular expression only enforces "11 or 14 digits", not which one matches the declared
+        /// CPF/CNPJ check digits, plus the length required by <see cref="TipoPessoa"/> (11 digits for CPF,
+        /// or a 12-character uppercase alphanumeric base and 2 numeric check digits for CNPJ): the regular
+        /// expression accepts either document shape, while this check ensures it matches the declared
         /// <see cref="TipoPessoa"/>.
         /// </summary>
         /// <inheritdoc />

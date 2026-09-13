@@ -23,6 +23,9 @@ namespace BoletoForBanrisul.Core.Tests
         /// <summary>A CNPJ from the bank's "Com Rateio" sample (the sharing beneficiaries). Passes the check-digit algorithm.</summary>
         internal const string ValidCnpj = "92702067000196";
 
+        /// <summary>The Federal Revenue's official alphanumeric CNPJ example, including its check digits.</summary>
+        internal const string ValidAlphanumericCnpj = "12ABC34501DE35";
+
         /// <summary>Well-formed at 11 digits (repeated), so it satisfies every attribute but fails the check-digit algorithm - the natural negative case.</summary>
         internal const string PlaceholderCpf = "11111111111";
 

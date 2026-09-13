@@ -141,10 +141,10 @@ namespace BoletoForBanrisul.Report
                 .Replace("{SeuNumero}", SanitizeFileName(boleto.Titulo.SeuNumero))
                 .Replace("{DataVencimento}", boleto.Titulo.DataVencimento.ToString("yyyyMMdd"))
                 .Replace("{DataEmissao}", boleto.Titulo.DataEmissao.ToString("yyyyMMdd"))
-                .Replace("{CpfCnpjPagador}", SanitizeFileName(ExtractNumbers(boleto.Titulo.Pagador.CpfCnpj)))
+                .Replace("{CpfCnpjPagador}", SanitizeFileName(ExtractDocumentCharacters(boleto.Titulo.Pagador.CpfCnpj)))
                 .Replace("{NomePagador}", SanitizeFileName(boleto.Titulo.Pagador.Nome))
                 .Replace("{NomeBeneficiario}", SanitizeFileName(_settings.Beneficiary.Name))
-                .Replace("{CpfCnpjBeneficiario}", SanitizeFileName(ExtractNumbers(_settings.Beneficiary.CpfCnpj)));
+                .Replace("{CpfCnpjBeneficiario}", SanitizeFileName(ExtractDocumentCharacters(_settings.Beneficiary.CpfCnpj)));
 
             return $"{fileName}.pdf";
         }
@@ -155,9 +155,12 @@ namespace BoletoForBanrisul.Report
             return string.Join("_", input.Split(invalidChars, StringSplitOptions.RemoveEmptyEntries)).Trim();
         }
 
-        private string ExtractNumbers(string input)
+        private string ExtractDocumentCharacters(string input)
         {
-            return new string(input.Where(char.IsDigit).ToArray());
+            return new string(input.Where(c =>
+                (c >= '0' && c <= '9') ||
+                (c >= 'A' && c <= 'Z') ||
+                (c >= 'a' && c <= 'z')).ToArray());
         }
 
         private async Task<string> RenderBoletoHtml(Boleto boleto, CancellationToken cancellationToken)

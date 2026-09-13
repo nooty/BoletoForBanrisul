@@ -1,9 +1,12 @@
 # BoletoForBanrisul
 
 .NET components for Banrisul's
-[API Cobrança de Títulos](https://developers.banrisul.com.br/bpi/link/api-cobranca-titulos.html):
+[API Cobrança de Títulos](https://developers.banrisul.com.br/pages/docs/clientes-banrisul/api-cobranca-v1.html):
 register, query and manage *boletos* (the Brazilian bank payment slips) and render them as PDF
 locally.
+
+The CPF/CNPJ fields include the contract change published in API version 1.6.1: 11-digit CPF and
+14-character CNPJ identifiers whose 12-character base may contain uppercase letters.
 
 > This is an independent, community project. It is not affiliated with, endorsed by, or supported by
 > Banco do Estado do Rio Grande do Sul (Banrisul). Using the API requires credentials issued by the
@@ -104,9 +107,11 @@ var pdf = await report.PrintAsync(new Boleto { Titulo = response.Titulo! }, Canc
 await File.WriteAllBytesAsync("boleto.pdf", pdf);
 ```
 
-`PrintAsync` returns the PDF bytes; nothing is written to disk unless you write it. The report also
-renders slips the bank never saw: pass a `Boleto` you filled in yourself and it computes the barcode
-and the linha digitável from its fields.
+`PrintAsync` returns the PDF bytes; no PDF output file is written unless you write it. Chromium may
+still use temporary profile files during conversion, as described under
+[Profiles and process teardown](#profiles-and-process-teardown). The report also renders slips the
+bank never saw: pass a `Boleto` you filled in yourself and it computes the barcode and the linha
+digitável from its fields.
 
 The `using var client` above also shows the default lifecycle: build a client for one unit of work
 and dispose it when that work is done. An application may keep and share one instance only when its
@@ -123,21 +128,23 @@ using var client = new BoletoClientBuilder()
     .SetBeneficiary("0123456789012")                   // required; full beneficiário code
     .UseSandbox()                                      // apidev.banrisul.com.br instead of production
     .SetRequestMode(RequestModeType.Test)              // bergs-ambiente header: "T" instead of "P"
-                                                       // (query and change operations only)
+                                                       // (change, cancellation and issuing operations)
     .EnableLogging(@"C:\logs\banrisul")                // defaults to ./Logs when the path is omitted
     .SetTokenStorage(new SharedInMemoryTokenStorage()) // the default; swap for a distributed cache
     .Build();
 ```
 
-`SetRequestMode` sends the `bergs-ambiente` header, which registration does not use, so it has no
-effect on `CreateBoletoAsync`. Registration carries its own environment in the payload instead, as
-`Boleto.Ambiente` (default: `Teste`), which mirrors the bank's own request collection, where
-`POST /boletos` carries no `bergs-ambiente` header at all.
+`SetRequestMode` sends the `bergs-ambiente` header on `ChangeDueDateAsync`, `GrantAbatementAsync`,
+`CancelBoletoAsync` and `IssueBoletoAsync`. It has no effect on `CreateBoletoAsync` or
+`GetBoletoAsync`. Registration carries its own environment in the payload instead, as
+`Boleto.Ambiente` (default: `Teste`), while consultation has no request-mode header.
 
-`EnableLogging` writes four JSON files per call (request, request body, response, response body)
-into the given directory. The `Authorization` header is redacted; **the bodies are not**, so those
-files hold payer names and documents in the clear. Point it somewhere you are willing to keep
-personal data, and leave it off in production unless you are actively investigating something.
+`EnableLogging` writes four JSON files for each completed API exchange (request metadata, request
+body, response metadata and response body). When a token must be fetched, the OAuth exchange adds
+four `Auth*` files. API logs redact the `Authorization` header but **do not redact their bodies**, so
+those files hold payer names and documents in the clear. Authentication logs redact `client_secret`
+and `access_token`. Point the directory somewhere you are willing to keep personal data, and leave
+logging off in production unless you are actively investigating something.
 
 `SetAuthentication`, `SetBeneficiary` and `SetRequestMode` are frozen into each `IBoletoClient` at
 `Build()`. The default lifecycle is therefore to build a client for one unit of work and dispose it
@@ -178,14 +185,18 @@ authenticate once. Implement `ITokenStorage` and pass it to `SetTokenStorage` to
 somewhere else, a distributed cache for instance, so that several instances of your application do
 not each request their own.
 
+If an API operation receives `401 Unauthorized`, the client invalidates the cached token, obtains a
+fresh one and sends that operation one more time. A second `401` is surfaced as
+`UnauthorizedException`.
+
 ### Resilience
 
 For retry-enabled requests, transient failures (connection errors, 5xx, 408) are retried three times
 with decorrelated jitter backoff starting at one second, and every request times out after 100
 seconds.
 
-Which calls are retried is decided per request, not per client. Only operations that do not mutate
-boleto state are retried:
+Which calls enter this transient-failure retry policy is decided per request, not per client. Only
+operations that do not mutate boleto state enter it:
 
 | Call | Retried | Why |
 | --- | --- | --- |
@@ -196,11 +207,17 @@ boleto state are retried:
 A retryable request has its body buffered before the first attempt, so each attempt can send it
 again. One that is not retryable skips the buffering and goes straight out.
 
-> **Every boleto-mutating request is sent exactly once, on purpose.** The API documents no idempotency guarantee for
-> any of them, so a resend after a lost response is a gamble rather than a correction. Registration
-> is the costliest case, since a resend can leave two slips where you asked for one, but a repeated
-> *baixa* or *alteração* is no better understood: the state may well converge, while the second
-> response comes back as an error about a slip already cancelled or already changed.
+> **Boleto-mutating requests are not retried after connection errors, 5xx or 408 responses.** The API
+> documents no idempotency guarantee for any of them, so a resend after a lost response is a gamble
+> rather than a correction. Registration is the costliest case, since a resend can leave two slips
+> where you asked for one, but a repeated *baixa* or *alteração* is no better understood: the state
+> may well converge, while the second response comes back as an error about a slip already cancelled
+> or already changed.
+
+Authentication recovery is the separate resend path: after an API operation receives a `401`, the
+authentication handler refreshes the token and sends that same operation once more. This is not a
+retry for a transient transport or server failure; the first response confirms that the bank rejected
+the authorization. A second `401` reaches the caller.
 
 A transient failure on a write therefore reaches you as an exception rather than being absorbed, and
 what happened at the bank is genuinely unknown at that point. Do not simply send it again: query the
@@ -226,10 +243,12 @@ safe only once you have checked what the first attempt actually did.
 | `TooManyRequestsException` | 429: throttled |
 | `InternalServerErrorException` | 500 |
 | `ServiceUnavailableException` | 503: service temporarily unavailable |
-| `ResponseDeserializationException` | The response did not have the expected shape |
+| `ResponseDeserializationException` | A successful API response deserialized to `null` |
 | `UnauthorizedException` | 401: the credentials were rejected |
-| `TokenDeserializationException` | The token response did not have the expected shape |
+| `AuthenticationException` | The token endpoint returned another unsuccessful status |
+| `TokenDeserializationException` | A successful token response deserialized to `null` |
 | `ApiException` | Any other unsuccessful status, with the code in `HttpStatusCode` |
+| `JsonException` | A successful API or token response contained malformed JSON |
 | `HttpRequestException` | Network or transport failure, or no valid HTTP response was obtained |
 
 The API exceptions live in `BoletoForBanrisul.Client.Exceptions.Api` and derive from `ApiException`,
@@ -293,8 +312,11 @@ var zip = await report.ZipBoletosAsync(boletos, cancellationToken);
 `ZipBoletosAsync` names each entry from `FileNameTemplate` and appends ` (2)`, ` (3)` and so on when
 two slips would produce the same name, so no entry is ever silently lost.
 
-`IBoletoReport` is immutable once built and safe for concurrent use. `BoletoReport` also has public
-constructors, if you would rather wire the parts yourself than go through the builder.
+`IBoletoReport` keeps no per-call state and supports concurrent calls as long as the supplied
+`PrintSettings`, `Boleto` values, renderer and converter are not mutated or disposed while calls are
+active. `BoletoReport` retains the supplied `PrintSettings`, so treat the builder and settings as
+setup-only after `Build()`. `BoletoReport` also has public constructors, if you would rather wire the
+parts yourself than go through the builder.
 
 ### Print settings
 
@@ -311,8 +333,9 @@ constructors, if you would rather wire the parts yourself than go through the bu
 `boleto_{NossoNumero}_{DataVencimento}` produces `boleto_0000038806_20260315.pdf`.
 
 Three details about how the values are written. Dates use `yyyyMMdd`, which keeps names sorting
-chronologically. CPF/CNPJ are reduced to digits, so `123.456.789-01` becomes `12345678901`. And
-characters a file name cannot hold are stripped from the remaining fields, so a payer named `Cliente
+chronologically. CPF/CNPJ punctuation is removed while letters and digits are retained, so
+`123.456.789-01` becomes `12345678901` and `12.ABC.345/01DE-35` becomes `12ABC34501DE35`.
+Characters a file name cannot hold are stripped from the remaining fields, so a payer named `Cliente
 A/B` does not break the name. A slip that has no nosso número yet renders `{NossoNumero}` as
 `unknown`.
 
@@ -510,6 +533,8 @@ ENV DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=false
 
 COPY --from=publish /app/publish .
 
+USER app
+
 ENTRYPOINT ["/sbin/tini", "--", "dotnet", "YourApp.dll"]
 ```
 
@@ -547,10 +572,11 @@ otherwise have to reverse-engineer the day a conversion misbehaves in production
 
 ### Profiles and process teardown
 
-Each conversion gets its own disposable Chromium profile, no cache, deleted at the end: a Chromium
-that dies mid-conversion cannot contaminate the next one. Free disk space is checked before the
-browser starts, because a full disk can make Chromium fail or hang mid-conversion rather than return
-a clear error.
+With the default settings, each conversion gets its own disposable Chromium profile, no cache,
+deleted at the end: a Chromium that dies mid-conversion cannot contaminate the next one. Setting a
+fixed `UserProfileDirectory` or enabling `UseCache` opts out of part of that isolation. Free disk
+space is checked before the browser starts, because a full disk can make Chromium fail or hang
+mid-conversion rather than return a clear error.
 
 As a safety net for whatever escapes that (a process killed mid-conversion, a handle not released in
 time), the converter sweeps forgotten profiles on its own: when the last sweep is older than

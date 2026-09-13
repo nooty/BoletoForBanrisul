@@ -5,10 +5,10 @@ namespace BoletoForBanrisul.Core.Tests.Validation
 {
     /// <summary>CPF/CNPJ check digits.</summary>
     /// <remarks>
-    /// The bank's own schema declares <c>pagador.cpf_cnpj</c> as a plain 11-or-14-digit string with no
-    /// check-digit pattern at all, so none of this maths is mandated by the bank - it is a library-side net
-    /// that turns a typo into a local error instead of a rejected registration. That also means these rules
-    /// can be relaxed without violating the contract, which is why the maths lives in one isolated class.
+    /// Banrisul's 1.6.1 contract accepts an 11-digit CPF or a 14-character uppercase alphanumeric CNPJ.
+    /// The bank's pattern does not validate check digits, so that maths remains a library-side net that
+    /// turns a typo into a local error instead of a rejected registration. It lives in one isolated class
+    /// so the extra validation can be changed without altering the transport contract.
     /// </remarks>
     [Trait("Category", "Unit")]
     public class DocumentNumberValidatorTests
@@ -38,14 +38,18 @@ namespace BoletoForBanrisul.Core.Tests.Validation
 
         [Theory]
         [InlineData(BoletoFactory.ValidCnpj)] // from the bank's "Com Rateio" sample
+        [InlineData(BoletoFactory.ValidAlphanumericCnpj)] // Federal Revenue's official alphanumeric example
         [InlineData("11222333000181")]
-        public void IsValidCnpj_AcceptsNumbersWithCorrectCheckDigits(string cnpj)
+        public void IsValidCnpj_AcceptsDocumentsWithCorrectCheckDigits(string cnpj)
         {
             Assert.True(DocumentNumberValidator.IsValidCnpj(cnpj));
         }
 
         [Theory]
         [InlineData("92702067000197")] // ValidCnpj with its last digit altered
+        [InlineData("12ABC34501DE36")] // alphanumeric CNPJ with its last digit altered
+        [InlineData("12abc34501de35")] // the API contract requires uppercase letters
+        [InlineData("12ABC34501DE3A")] // the two check digits remain numeric
         [InlineData("11111111111111")]
         [InlineData("9270206700019")]  // too short
         [InlineData("")]
@@ -65,7 +69,7 @@ namespace BoletoForBanrisul.Core.Tests.Validation
                 .ToArray();
 
             var result = Assert.Single(results);
-            Assert.Contains("must have 14 digits", result.ErrorMessage);
+            Assert.Contains("must have 14 characters", result.ErrorMessage);
             Assert.Equal("Pagador.CpfCnpj", Assert.Single(result.MemberNames));
         }
 
@@ -92,9 +96,18 @@ namespace BoletoForBanrisul.Core.Tests.Validation
         public void Validate_AcceptsAPunctuatedNumber()
         {
             // Punctuation is stripped before checking, so a caller pasting a formatted document is not
-            // rejected for formatting alone. The [RegularExpression] on the model still requires bare digits
-            // on the wire.
+            // rejected for formatting alone. The [RegularExpression] on the model still requires the bare
+            // document characters on the wire.
             Assert.Empty(DocumentNumberValidator.Validate(TipoPessoa.PessoaFisica, "000.000.001-91", "Pagador.CpfCnpj"));
+        }
+
+        [Fact]
+        public void Validate_AcceptsAFormattedAlphanumericCnpj()
+        {
+            Assert.Empty(DocumentNumberValidator.Validate(
+                TipoPessoa.PessoaJuridica,
+                "12.ABC.345/01DE-35",
+                "Pagador.CpfCnpj"));
         }
 
         [Fact]
@@ -104,6 +117,7 @@ namespace BoletoForBanrisul.Core.Tests.Validation
             Assert.Empty(DocumentNumberValidator.Validate(TipoPessoa.PessoaFisica, BoletoFactory.ValidSacadorCpf, "x"));
             Assert.Empty(DocumentNumberValidator.Validate(TipoPessoa.PessoaFisica, "67524451091", "x"));
             Assert.Empty(DocumentNumberValidator.Validate(TipoPessoa.PessoaJuridica, BoletoFactory.ValidCnpj, "x"));
+            Assert.Empty(DocumentNumberValidator.Validate(TipoPessoa.PessoaJuridica, BoletoFactory.ValidAlphanumericCnpj, "x"));
         }
     }
 }

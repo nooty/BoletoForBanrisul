@@ -61,5 +61,35 @@ namespace BoletoForBanrisul.Report.Tests
             Assert.NotNull(entry);
             Assert.Equal(expectedFileName, entry.Name);
         }
+
+        [Fact]
+        public async Task Should_Preserve_Alphanumeric_Cnpj_Characters_In_Zip_File_Names()
+        {
+            var printSettings = new PrintSettings
+            {
+                FileNameTemplate = "{CpfCnpjPagador}_{CpfCnpjBeneficiario}",
+                Beneficiary = new BeneficiarySettings
+                {
+                    CpfCnpj = "98.XYZ.765/43AB-10"
+                }
+            };
+
+            var boletoReport = new BoletoReport(printSettings, new RecordingPdfConverter());
+            var boleto = new Boleto
+            {
+                Titulo = new Titulo
+                {
+                    Pagador = new Pagador { CpfCnpj = "12.ABC.345/01DE-35" }
+                }
+            };
+
+            var zipBytes = await boletoReport.ZipBoletosAsync(new[] { boleto });
+
+            using var zipStream = new MemoryStream(zipBytes);
+            using var zipArchive = new ZipArchive(zipStream, ZipArchiveMode.Read);
+            var entry = Assert.Single(zipArchive.Entries);
+
+            Assert.Equal("12ABC34501DE35_98XYZ76543AB10.pdf", entry.Name);
+        }
     }
 }

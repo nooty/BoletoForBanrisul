@@ -955,6 +955,35 @@ namespace BoletoForBanrisul.Core.Tests.Validation
             Assert.Empty(ErrorsOf(BoletoFactory.CreateValid()));
         }
 
+        [Fact]
+        public void PayerAlphanumericCnpjMatchingItsDeclaredType_IsAccepted()
+        {
+            var titulo = BoletoFactory.CreateValid();
+            titulo.Pagador.TipoPessoa = TipoPessoa.PessoaJuridica;
+            titulo.Pagador.CpfCnpj = BoletoFactory.ValidAlphanumericCnpj;
+
+            Assert.Empty(ErrorsOf(titulo));
+        }
+
+        [Fact]
+        public void DrawerAlphanumericCnpjMatchingItsDeclaredType_IsAccepted()
+        {
+            var titulo = BoletoFactory.CreateValid();
+            titulo.Sacador!.TipoPessoa = TipoPessoa.PessoaJuridica;
+            titulo.Sacador.CpfCnpj = BoletoFactory.ValidAlphanumericCnpj;
+
+            Assert.Empty(ErrorsOf(titulo));
+        }
+
+        [Fact]
+        public void SharingBeneficiaryAlphanumericCnpj_IsAccepted()
+        {
+            var titulo = BoletoFactory.CreateValid();
+            titulo.Rateio!.Beneficiarios[0].CpfCnpj = BoletoFactory.ValidAlphanumericCnpj;
+
+            Assert.Empty(ErrorsOf(titulo));
+        }
+
         // --- Attribute-level: SeuNumero charset and length. ---
 
         [Fact]

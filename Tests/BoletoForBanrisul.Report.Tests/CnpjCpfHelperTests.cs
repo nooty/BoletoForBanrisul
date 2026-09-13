@@ -17,6 +17,12 @@ namespace BoletoForBanrisul.Report.Tests
             Assert.Equal("92.702.067/0001-96", CnpjCpfHelper.Format("92702067000196"));
         }
 
+        [Fact]
+        public void Format_FourteenAlphanumericCharacters_FormatsAsCnpj()
+        {
+            Assert.Equal("12.ABC.345/01DE-35", CnpjCpfHelper.Format("12ABC34501DE35"));
+        }
+
         [Theory]
         [InlineData("123")]
         [InlineData("123456789012345")]
