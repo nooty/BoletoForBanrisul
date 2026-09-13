@@ -11,7 +11,7 @@
     <Title>$(AssemblyName.Replace("Client", ".Client"))</Title>
     <Authors>Wendell Gasparoni</Authors>
     <Product>$(AssemblyName.Replace("Client", ".Client"))</Product>
-    <Description>The BoletoForBanrisul.Client component is a .NET client that provides full integration with Banrisul's billing API.
+    <Description>The BoletoForBanrisul.Client component is a .NET client that provides integration with the supported operations of Banrisul's billing API.
 
 Key features:
 
@@ -36,7 +36,7 @@ This is an independent, community project. It is not affiliated with, endorsed b
     <!-- CS1591: the XML doc file still ships, so the summaries that exist reach consumers; the
          members without one do not fail the build. -->
     <NoWarn>$(NoWarn);1591</NoWarn>
-	<Version>1.0.0-rc.11</Version>
+	<Version>1.0.0-rc.12</Version>
   </PropertyGroup>
 
   <ItemGroup>
