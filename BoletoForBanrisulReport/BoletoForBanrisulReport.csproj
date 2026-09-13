@@ -84,13 +84,15 @@ This is an independent, community project. It is not affiliated with, endorsed b
     <PackageReference Include="ChromeHtmlToPdf" Version="4.4.5" />
     <PackageReference Include="RazorLight" Version="2.3.1" />
     <PackageReference Include="ZXing.Net" Version="0.16.11" />
-    <!-- Neither is used directly: both are declared only to lift a vulnerable transitive version to
-         its patched one, for this package and for whoever installs it. Drop each once the dependency
+    <!-- None is used directly: these are declared only to lift vulnerable transitive versions to
+         patched ones, for this package and for whoever installs it. Drop each once the dependency
          that drags it in ships a version that already resolves past it.
          AngleSharp < 1.5.0 (GHSA-pgww-w46g-26qg), through ChromeHtmlToPdf -> HtmlSanitizer.
+         Microsoft.Extensions.Caching.Memory 6.0.0 (GHSA-qj66-m88j-hmgj), through RazorLight.
          System.Text.RegularExpressions 4.3.0 (GHSA-cmhx-cq75-c4mj), through RazorLight ->
          Microsoft.CodeAnalysis.Common -> System.Xml.ReaderWriter. -->
     <PackageReference Include="AngleSharp" Version="1.5.0" />
+    <PackageReference Include="Microsoft.Extensions.Caching.Memory" Version="8.0.1" />
     <PackageReference Include="System.Text.RegularExpressions" Version="4.3.1" />
   </ItemGroup>
 

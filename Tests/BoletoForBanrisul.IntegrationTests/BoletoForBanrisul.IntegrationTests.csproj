@@ -17,11 +17,6 @@
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
     <PackageReference Include="xunit" Version="2.9.3" />
     <PackageReference Include="xunit.runner.visualstudio" Version="3.1.4" />
-
-    <!-- Not used directly: it lifts Caching.Memory 6.0.0 (GHSA-qj66-m88j-hmgj) to a patched version.
-         RazorLight asks for 2.1.0 under netstandard2.0, which the Report package resolves and is not
-         affected; only these net10.0 test projects land on the vulnerable 6.0.0. -->
-    <PackageReference Include="Microsoft.Extensions.Caching.Memory" Version="8.0.1" />
   </ItemGroup>
 
   <ItemGroup>
