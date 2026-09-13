@@ -17,6 +17,7 @@ namespace BoletoForBanrisul.Client.HttpClients
     {
         private static readonly Lazy<StandardSocketsHttpHandler> _instance = new Lazy<StandardSocketsHttpHandler>(() => new StandardSocketsHttpHandler
         {
+            UseCookies = false,
             PooledConnectionLifetime = TimeSpan.FromMinutes(15),
             PooledConnectionIdleTimeout = TimeSpan.FromMinutes(2),
         });

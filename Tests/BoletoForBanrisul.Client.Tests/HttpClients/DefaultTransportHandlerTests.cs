@@ -20,5 +20,13 @@ namespace BoletoForBanrisul.Client.Tests.HttpClients
             Assert.NotEqual(Timeout.InfiniteTimeSpan, handler.PooledConnectionLifetime);
             Assert.NotEqual(Timeout.InfiniteTimeSpan, handler.PooledConnectionIdleTimeout);
         }
+
+        [Fact]
+        public void Instance_DisablesAutomaticCookies()
+        {
+            var handler = Assert.IsType<StandardSocketsHttpHandler>(DefaultTransportHandler.Instance);
+
+            Assert.False(handler.UseCookies);
+        }
     }
 }

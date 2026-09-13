@@ -114,8 +114,9 @@ bank never saw: pass a `Boleto` you filled in yourself and it computes the barco
 digitável from its fields.
 
 The `using var client` above also shows the default lifecycle: build a client for one unit of work
-and dispose it when that work is done. This is cheap even under load, because every client sends
-through one connection pool shared by the whole process. See [Using the client](#using-the-client).
+and dispose it when that work is done. This is cheap from a connection-management perspective,
+because every client sends through transport pools shared by the whole process. See
+[Using the client](#using-the-client).
 
 ## Using the client
 
@@ -150,17 +151,21 @@ logging off in production unless you are actively investigating something.
 `Build()`. The default lifecycle is therefore to build a client for one unit of work and dispose it
 afterward (`using var client = ...`). Each client is `IDisposable` because it owns the two
 `HttpClient` instances created by the builder: one for the API and another for the token endpoint.
-Disposing the client releases those two objects and their handler chains, nothing more.
+Disposing the client cancels their pending requests and prevents them from sending new ones. Their
+managed handler chains become eligible for garbage collection with the client; the shared transport
+underneath them is not disposed.
 
 ### Connections
 
-Every client, whichever way it was built, sends through a single `StandardSocketsHttpHandler` shared
-by the whole process. It is never disposed: idle connections close after two minutes, every
-connection is recycled after fifteen minutes so that DNS changes are picked up, and the system proxy
-is honoured. This is the long-lived transport the
+Clients built by `BoletoClientBuilder` send through one `StandardSocketsHttpHandler` shared by the
+whole process. The handler maintains connection pools per destination and is never disposed: idle
+connections close after two minutes, every connection is recycled after fifteen minutes so that DNS
+changes are picked up, and the system proxy is honoured. Automatic cookies are disabled, preventing
+one tenant's cookies from flowing through the shared handler to another tenant. This is the
+long-lived transport the
 [HttpClient guidelines](https://learn.microsoft.com/dotnet/fundamentals/networking/http/httpclient-guidelines)
-recommend, and it means that building and disposing a client opens and closes no sockets. Build one
-per request, one per tenant, one per operation: none of that exhausts ports or repeats TLS handshakes.
+recommend. Building or disposing a client does not itself open or close connections and does not
+force a new TLS handshake; connections are created and recycled by the shared transport as needed.
 
 ### Multi-tenant applications
 
@@ -175,27 +180,13 @@ using var client = new BoletoClientBuilder()
     .Build();
 ```
 
-This is cheap. Every client shares the process-wide connection pool, so building and disposing one
-opens no sockets, and `SharedInMemoryTokenStorage` caches the OAuth token per credential, so a tenant
-authenticates once no matter how many clients are built for it. With DI, inject `BoletoClientBuilder`
-and do the same.
+This is cheap from a connection-management perspective. Every client uses the process-wide transport,
+so building and disposing one does not create or tear down its own pool. With DI, inject
+`BoletoClientBuilder` and follow the same pattern.
 
-Keeping one client per tenant saves only the allocation of two `HttpClient` objects and their handler
-chain. If you want that, cache clients by tenant and do not dispose the cached instances:
-
-```csharp
-private readonly ConcurrentDictionary<string, IBoletoClient> _clients = new();
-
-IBoletoClient ClientFor(Tenant tenant) =>
-    _clients.GetOrAdd(tenant.Id, _ => new BoletoClientBuilder()
-        .SetAuthentication(tenant.ClientId, tenant.ClientSecret)
-        .SetBeneficiary(tenant.BeneficiaryCode)
-        .Build());
-```
-
-Remove the entry when a tenant's credentials or beneficiário change. Under a race `GetOrAdd` may
-build two clients and keep one; the other is garbage collected and holds no connections, so nothing
-needs to be done about it.
+Keeping one client per tenant only avoids allocating its two `HttpClient` wrappers and managed handler
+chains. Sharing is valid while the credentials, beneficiário and request mode remain fixed, but a
+cache must dispose clients when entries are replaced or when the application shuts down.
 
 ### Operations
 
@@ -233,7 +224,7 @@ fresh one and sends that operation one more time. A second `401` is surfaced as
 
 For retry-enabled requests, transient failures (connection errors, 5xx, 408) are retried three times
 with decorrelated jitter backoff starting at one second, and every request times out after 100
-seconds. Retries reuse the shared connection pool described in [Connections](#connections).
+seconds. Retries reuse the shared transport pools described in [Connections](#connections).
 
 Which calls enter this transient-failure retry policy is decided per request, not per client. Only
 operations that do not mutate boleto state enter it:
