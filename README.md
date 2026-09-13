@@ -108,9 +108,9 @@ await File.WriteAllBytesAsync("boleto.pdf", pdf);
 renders slips the bank never saw: pass a `Boleto` you filled in yourself and it computes the barcode
 and the linha digitável from its fields.
 
-The `using var client` above fits this script, which runs once and exits. In an application that
-serves many requests, build the client once and share it. See
-[Using the client](#using-the-client).
+The `using var client` above also shows the default lifecycle: build a client for one unit of work
+and dispose it when that work is done. An application may keep and share one instance only when its
+credentials, beneficiário and request mode remain fixed. See [Using the client](#using-the-client).
 
 ## Using the client
 
@@ -139,14 +139,16 @@ into the given directory. The `Authorization` header is redacted; **the bodies a
 files hold payer names and documents in the clear. Point it somewhere you are willing to keep
 personal data, and leave it off in production unless you are actively investigating something.
 
-`IBoletoClient` is meant to be built per use, not shared: `SetAuthentication`, `SetBeneficiary` and
-`SetRequestMode` are set once at `Build()` and frozen from then on, so a multi-tenant application,
-with different credentials or a different beneficiário per request, rebuilds the client for each
-one. It
-is `IDisposable` and owns the two `HttpClient` instances the builder creates, one for the API and a
-separate one for the token endpoint; dispose it (`using var client = ...`) when that unit of work is
-done. If your credentials never change, building once and sharing the instance is a valid
-optimization, but it is not what the DI registration below assumes.
+`SetAuthentication`, `SetBeneficiary` and `SetRequestMode` are frozen into each `IBoletoClient` at
+`Build()`. The default lifecycle is therefore to build a client for one unit of work and dispose it
+afterward (`using var client = ...`). This is required when the configuration can change, as in a
+multi-tenant application with different credentials or a different beneficiário per request. Each
+client is `IDisposable` because it owns the two `HttpClient` instances created by the builder: one for
+the API and another for the token endpoint.
+
+If the credentials, beneficiário and request mode stay fixed, keeping one `IBoletoClient` and sharing
+it across requests is a valid optimization. The DI registration below follows the default per-use
+lifecycle and deliberately registers the builder rather than the built client.
 
 ### Operations
 
