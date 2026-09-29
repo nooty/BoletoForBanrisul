@@ -93,7 +93,7 @@ using var report = new BoletoReportBuilder()
     {
         Code = "0123456789012",
         Name = "ACME LTDA",
-        CpfCnpj = "12345678000199",
+        CpfCnpj = "12345678000195",
         Address = "RUA CALDAS JUNIOR 120",
         City = "PORTO ALEGRE",
         State = "RS",
@@ -124,6 +124,9 @@ because every client sends through transport pools shared by the whole process. 
 code are required; everything else is optional.
 
 ```csharp
+using BoletoForBanrisul.Client;
+using BoletoForBanrisul.Client.Auth;
+
 using var client = new BoletoClientBuilder()
     .SetAuthentication("client-id", "client-secret")   // required; scope defaults to "boletos"
     .SetBeneficiary("0123456789012")                   // required; full beneficiário code
@@ -160,7 +163,7 @@ underneath them is not disposed.
 Clients built by `BoletoClientBuilder` send through one `StandardSocketsHttpHandler` shared by the
 whole process. The handler maintains connection pools per destination and is never disposed: idle
 connections close after two minutes, every connection is recycled after fifteen minutes so that DNS
-changes are picked up, and the system proxy is honoured. Automatic cookies are disabled, preventing
+changes are picked up, and no proxy is configured. Automatic cookies are disabled, preventing
 one tenant's cookies from flowing through the shared handler to another tenant. This is the
 long-lived transport the
 [HttpClient guidelines](https://learn.microsoft.com/dotnet/fundamentals/networking/http/httpclient-guidelines)
@@ -200,7 +203,8 @@ cache must dispose clients when entries are replaced or when the application shu
 | `IssueBoletoAsync(id, typeId, ct)` | Asks the **bank** for the PDF | `byte[]` |
 
 Every method takes a `CancellationToken`. The identifier can be the nosso número, the barcode or the
-linha digitável. Say which through `BoletoIdentifierType`; omit it and the nosso número is assumed.
+linha digitável. Say which through `BoletoIdentifierType`; omit it and no `tipo_id` is sent, leaving
+the interpretation to the bank's default (the nosso número).
 
 `IssueBoletoAsync` returns the bank's own rendering of the slip. Use
 `BoletoForBanrisul.Report` instead when you want to render locally, with your own layout, without a
@@ -223,8 +227,9 @@ fresh one and sends that operation one more time. A second `401` is surfaced as
 ### Resilience
 
 For retry-enabled requests, transient failures (connection errors, 5xx, 408) are retried three times
-with decorrelated jitter backoff starting at one second, and every request times out after 100
-seconds. Retries reuse the shared transport pools described in [Connections](#connections).
+with decorrelated jitter backoff starting at one second. Every call has a 100-second timeout
+(`HttpClient.Timeout`), which covers the whole call, retries and backoff waits included, not each
+attempt. Retries reuse the shared transport pools described in [Connections](#connections).
 
 Which calls enter this transient-failure retry policy is decided per request, not per client. Only
 operations that do not mutate boleto state enter it:
@@ -236,7 +241,8 @@ operations that do not mutate boleto state enter it:
 | **`CreateBoletoAsync`**, **`CancelBoletoAsync`**, **`ChangeDueDateAsync`**, **`GrantAbatementAsync`** | **No** | Writes have side effects and no documented idempotency; see below |
 
 A retryable request has its body buffered before the first attempt, so each attempt can send it
-again. One that is not retryable skips the buffering and goes straight out.
+again. The authentication layer also buffers every request body, so that it can resend the operation
+after a `401` (see below).
 
 > **Boleto-mutating requests are not retried after connection errors, 5xx or 408 responses.** The API
 > documents no idempotency guarantee for any of them, so a resend after a lost response is a gamble
@@ -281,10 +287,13 @@ safe only once you have checked what the first attempt actually did.
 | `ApiException` | Any other unsuccessful status, with the code in `HttpStatusCode` |
 | `JsonException` | A successful API or token response contained malformed JSON |
 | `HttpRequestException` | Network or transport failure, or no valid HTTP response was obtained |
+| `TaskCanceledException` | The 100-second timeout elapsed, or the `CancellationToken` was cancelled |
 
 The API exceptions live in `BoletoForBanrisul.Client.Exceptions.Api` and derive from `ApiException`,
 which carries the `HttpStatusCode` and a list of `Occurrences`, the bank's own error codes and
-messages, when it sent any. The authentication ones live in `BoletoForBanrisul.Client.Exceptions.Auth`
+messages, when it sent any. `HttpStatusCode` is the library's own `HttpErrorCode` enum, not
+`System.Net.HttpStatusCode`; a status that enum does not define is reported as
+`HttpErrorCode.Unknown`. The authentication ones live in `BoletoForBanrisul.Client.Exceptions.Auth`
 and derive from `AuthenticationException`.
 
 ## Local validation
@@ -366,8 +375,9 @@ parts yourself than go through the builder.
 Three details about how the values are written. Dates use `yyyyMMdd`, which keeps names sorting
 chronologically. CPF/CNPJ punctuation is removed while letters and digits are retained, so
 `123.456.789-01` becomes `12345678901` and `12.ABC.345/01DE-35` becomes `12ABC34501DE35`.
-Characters a file name cannot hold are stripped from the remaining fields, so a payer named `Cliente
-A/B` does not break the name. A slip that has no nosso número yet renders `{NossoNumero}` as
+Characters a file name cannot hold are replaced with `_` in the remaining fields (a run of them
+becomes a single `_`), so a payer named `Cliente A/B` produces `Cliente A_B` instead of breaking the
+name. Which characters count as invalid depends on the operating system. A slip that has no nosso número yet renders `{NossoNumero}` as
 `unknown`.
 
 ### Custom templates
@@ -430,7 +440,8 @@ failure.
 `--user-data-dir` is refused inside `ChromiumArguments`: the converter appends its own after your
 list, on every conversion, so an entry there would either be silently overwritten or point Chromium at
 a directory the converter does not own, lock or clean up. Use `UserProfileDirectory` to pin a fixed
-profile instead.
+profile instead. A fixed profile cannot back two Chromium processes at once, so combining
+`UserProfileDirectory` with `MaxConcurrentConversions` above 1 is refused.
 
 `SetPdfConverter` and `ConfigureChromium` cannot be combined: `ConfigureChromium` only configures the
 default converter, which is not used at all once you supply your own. Supplying your own
@@ -473,8 +484,9 @@ observed; past it, the browser is wedged at a level that never returns the `awai
 killed. Overrunning either one produces `TimeoutException`.
 
 The budget is counted by `ChromiumHtmlToPdfConverter` rather than delegated to ChromeHtmlToPdf
-for two reasons: the library's own clock starts only after navigation, leaving startup uncovered, and
-when it does expire the library reports it in a way that is indistinguishable from a content error,
+for two reasons: the library's timeout is not continuous (it bounds the DevTools handshake, stops
+during navigation and starts again only for printing, leaving navigation uncovered), and when it does
+expire the library reports it in a way that is indistinguishable from a content error,
 which makes classifying a timeout by exception type impossible.
 
 ## Dependency injection
@@ -521,7 +533,7 @@ That one call registers everything the report needs:
 
 | Service | Lifetime | Why |
 | --- | --- | --- |
-| `IPdfConverter` | Singleton | Holds process-level resources: Chromium and the concurrency semaphore |
+| `IPdfConverter` | Singleton | Holds the concurrency semaphore, which caps Chromium processes for the whole application (one is started per conversion) |
 | `IBoletoTemplateRenderer` | Singleton | Holds the Razor engine and the compiled-template cache |
 | `BoletoReportBuilder` | Transient | Assembles the report with the `PrintSettings` of the moment |
 
