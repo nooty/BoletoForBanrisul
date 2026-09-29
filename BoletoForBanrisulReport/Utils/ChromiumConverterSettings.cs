@@ -55,8 +55,9 @@ namespace BoletoForBanrisul.Report.Utils
         /// </summary>
         /// <remarks>
         /// Counted end to end by the converter itself, covering startup, navigation and printing. The
-        /// value is also handed to the library, which applies it to the DevTools handshake, but the
-        /// count that matters is the converter's: the library's own clock starts only after navigation.
+        /// value is also handed to the library, but the count that matters is the converter's: the
+        /// library's timeout bounds the DevTools handshake and then only the printing, leaving
+        /// navigation uncovered.
         /// </remarks>
         public TimeSpan ConversionTimeout { get; set; } = TimeSpan.FromSeconds(120);
 
